@@ -4,8 +4,8 @@ import {
   createSentimentFromEarnings,
   type SentimentAnalysisInput 
 } from '@/lib/services/sentimentService';
-import { getUpcomingEarnings, getUserWatchlists } from '@/lib/firestore';
-import type { EarningsEvent } from '@/types';
+import { adminDb } from '@/lib/firebase-admin';
+import type { EarningsEvent, Watchlist } from '@/types';
 
 export async function POST(request: NextRequest) {
   try {
@@ -29,7 +29,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Get user's watchlisted companies
-    const watchlists = await getUserWatchlists(userId);
+    const watchlistsSnapshot = await adminDb.collection('watchlists')
+      .where('userId', '==', userId)
+      .get();
+    
+    const watchlists = watchlistsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Watchlist));
     const watchlistedTickers = watchlists.flatMap(wl => wl.companies.map(c => c.ticker));
     
     // If specific tickers provided, filter to only watchlisted ones
@@ -46,7 +50,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Get upcoming earnings for watchlisted companies
-    const upcomingEarnings = await getUpcomingEarnings();
+    const earningsSnapshot = await adminDb.collection('earnings_events')
+      .where('expectedDate', '>=', new Date())
+      .orderBy('expectedDate', 'asc')
+      .limit(100)
+      .get();
+    
+    const upcomingEarnings = earningsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as EarningsEvent));
     const relevantEarnings = upcomingEarnings.filter(event => 
       targetTickers.includes(event.ticker)
     );

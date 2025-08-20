@@ -7,7 +7,7 @@ const MOCK_EARNINGS_DATA: Omit<EarningsEvent, 'id' | 'createdAt' | 'updatedAt'>[
   {
     ticker: 'AAPL',
     companyName: 'Apple Inc.',
-    expectedDate: new Date('2024-10-31'),
+    expectedDate: new Date('2025-08-22'),
     expectedTime: 'after_market',
     market: 'SP500',
     sector: 'Technology',
@@ -19,7 +19,7 @@ const MOCK_EARNINGS_DATA: Omit<EarningsEvent, 'id' | 'createdAt' | 'updatedAt'>[
   {
     ticker: 'MSFT',
     companyName: 'Microsoft Corporation',
-    expectedDate: new Date('2024-10-30'),
+    expectedDate: new Date('2025-08-21'),
     expectedTime: 'after_market',
     market: 'SP500',
     sector: 'Technology',
@@ -31,7 +31,7 @@ const MOCK_EARNINGS_DATA: Omit<EarningsEvent, 'id' | 'createdAt' | 'updatedAt'>[
   {
     ticker: 'GOOGL',
     companyName: 'Alphabet Inc.',
-    expectedDate: new Date('2024-10-29'),
+    expectedDate: new Date('2025-08-29'),
     expectedTime: 'after_market',
     market: 'SP500',
     sector: 'Communication Services',
@@ -43,7 +43,7 @@ const MOCK_EARNINGS_DATA: Omit<EarningsEvent, 'id' | 'createdAt' | 'updatedAt'>[
   {
     ticker: 'AMZN',
     companyName: 'Amazon.com Inc.',
-    expectedDate: new Date('2024-10-31'),
+    expectedDate: new Date('2025-08-31'),
     expectedTime: 'after_market',
     market: 'SP500',
     sector: 'Consumer Discretionary',
@@ -55,7 +55,7 @@ const MOCK_EARNINGS_DATA: Omit<EarningsEvent, 'id' | 'createdAt' | 'updatedAt'>[
   {
     ticker: 'TSLA',
     companyName: 'Tesla Inc.',
-    expectedDate: new Date('2024-10-23'),
+    expectedDate: new Date('2025-08-23'),
     expectedTime: 'after_market',
     market: 'SP500',
     sector: 'Consumer Discretionary',
@@ -79,7 +79,7 @@ const MOCK_EARNINGS_DATA: Omit<EarningsEvent, 'id' | 'createdAt' | 'updatedAt'>[
   {
     ticker: 'META',
     companyName: 'Meta Platforms Inc.',
-    expectedDate: new Date('2024-10-30'),
+    expectedDate: new Date('2025-08-30'),
     expectedTime: 'after_market',
     market: 'SP500',
     sector: 'Communication Services',
@@ -91,7 +91,7 @@ const MOCK_EARNINGS_DATA: Omit<EarningsEvent, 'id' | 'createdAt' | 'updatedAt'>[
   {
     ticker: 'JPM',
     companyName: 'JPMorgan Chase & Co.',
-    expectedDate: new Date('2024-10-15'),
+    expectedDate: new Date('2025-08-15'),
     expectedTime: 'before_market',
     market: 'SP500',
     sector: 'Financial Services',
@@ -103,7 +103,7 @@ const MOCK_EARNINGS_DATA: Omit<EarningsEvent, 'id' | 'createdAt' | 'updatedAt'>[
   {
     ticker: 'V',
     companyName: 'Visa Inc.',
-    expectedDate: new Date('2024-10-29'),
+    expectedDate: new Date('2025-08-29'),
     expectedTime: 'after_market',
     market: 'SP500',
     sector: 'Financial Services',
@@ -115,7 +115,7 @@ const MOCK_EARNINGS_DATA: Omit<EarningsEvent, 'id' | 'createdAt' | 'updatedAt'>[
   {
     ticker: 'JNJ',
     companyName: 'Johnson & Johnson',
-    expectedDate: new Date('2024-10-15'),
+    expectedDate: new Date('2025-08-15'),
     expectedTime: 'before_market',
     market: 'SP500',
     sector: 'Healthcare',
@@ -140,7 +140,7 @@ const MOCK_EARNINGS_DATA: Omit<EarningsEvent, 'id' | 'createdAt' | 'updatedAt'>[
   {
     ticker: 'CHKP',
     companyName: 'Check Point Software Technologies Ltd.',
-    expectedDate: new Date('2024-10-28'),
+    expectedDate: new Date('2025-08-28'),
     expectedTime: 'after_market',
     market: 'TA125',
     sector: 'Technology',

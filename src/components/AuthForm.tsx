@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { signInWithGoogle, signInWithEmail, signUpWithEmail } from '@/lib/auth';
 
 export default function AuthForm() {
@@ -9,6 +10,7 @@ export default function AuthForm() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const router = useRouter();
 
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -21,6 +23,7 @@ export default function AuthForm() {
       } else {
         await signInWithEmail(email, password);
       }
+      router.push('/dashboard');
     } catch (error: any) {
       setError(error.message);
     } finally {
@@ -34,6 +37,7 @@ export default function AuthForm() {
 
     try {
       await signInWithGoogle();
+      router.push('/dashboard');
     } catch (error: any) {
       setError(error.message);
     } finally {

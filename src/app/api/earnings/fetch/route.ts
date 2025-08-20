@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { collection, addDoc, query, where, getDocs, deleteDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { adminDb } from '@/lib/firebase-admin';
 import { createEarningsProvider, normalizeEarningsEvent } from '@/lib/services/earningsService';
 import type { EarningsEvent } from '@/types';
 
@@ -26,14 +25,12 @@ export async function POST(request: NextRequest) {
 
     // Clear existing data if force refresh is requested
     if (forceRefresh) {
-      const existingQuery = query(
-        collection(db, 'earnings_events'),
-        where('expectedDate', '>=', start),
-        where('expectedDate', '<=', end)
-      );
+      const existingQuery = adminDb.collection('earnings_events')
+        .where('expectedDate', '>=', start)
+        .where('expectedDate', '<=', end);
       
-      const existingDocs = await getDocs(existingQuery);
-      await Promise.all(existingDocs.docs.map(doc => deleteDoc(doc.ref)));
+      const existingDocs = await existingQuery.get();
+      await Promise.all(existingDocs.docs.map(doc => doc.ref.delete()));
     }
 
     // Fetch new earnings data
@@ -49,16 +46,14 @@ export async function POST(request: NextRequest) {
     for (const event of normalizedEvents) {
       try {
         // Check if event already exists
-        const existingQuery = query(
-          collection(db, 'earnings_events'),
-          where('ticker', '==', event.ticker),
-          where('expectedDate', '==', event.expectedDate)
-        );
+        const existingQuery = adminDb.collection('earnings_events')
+          .where('ticker', '==', event.ticker)
+          .where('expectedDate', '==', event.expectedDate);
         
-        const existing = await getDocs(existingQuery);
+        const existing = await existingQuery.get();
         
         if (existing.empty) {
-          const docRef = await addDoc(collection(db, 'earnings_events'), {
+          const docRef = await adminDb.collection('earnings_events').add({
             ...event,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -103,26 +98,21 @@ export async function GET(request: NextRequest) {
     const endDate = searchParams.get('endDate');
     const market = searchParams.get('market');
 
-    const earningsCollection = collection(db, 'earnings_events');
-    const constraints = [];
+    let earningsQuery = adminDb.collection('earnings_events');
 
     if (startDate) {
-      constraints.push(where('expectedDate', '>=', new Date(startDate)));
+      earningsQuery = earningsQuery.where('expectedDate', '>=', new Date(startDate));
     }
     
     if (endDate) {
-      constraints.push(where('expectedDate', '<=', new Date(endDate)));
+      earningsQuery = earningsQuery.where('expectedDate', '<=', new Date(endDate));
     }
     
     if (market) {
-      constraints.push(where('market', '==', market));
+      earningsQuery = earningsQuery.where('market', '==', market);
     }
 
-    const earningsQuery = constraints.length > 0 
-      ? query(earningsCollection, ...constraints)
-      : earningsCollection;
-
-    const snapshot = await getDocs(earningsQuery);
+    const snapshot = await earningsQuery.get();
     const events = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data(),

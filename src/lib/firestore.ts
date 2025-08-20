@@ -150,18 +150,26 @@ export const getEarningsForTickers = async (tickers: string[]): Promise<Earnings
 
 // Sentiment signals operations
 export const getLatestSignals = async (tickers?: string[]): Promise<SentimentSignal[]> => {
-  let q = query(
+  // Simplified query to avoid complex index requirements
+  const q = query(
     collection(db, SIGNALS_LATEST_COLLECTION),
-    where('expiresAt', '>', new Date()),
-    orderBy('createdAt', 'desc')
+    limit(100)
   );
 
-  if (tickers && tickers.length > 0) {
-    q = query(q, where('ticker', 'in', tickers));
-  }
-
   const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as SentimentSignal));
+  let signals = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as SentimentSignal));
+  
+  // Filter expired signals and specific tickers on the client side
+  signals = signals.filter(signal => new Date(signal.expiresAt) > new Date());
+  
+  if (tickers && tickers.length > 0) {
+    signals = signals.filter(signal => tickers.includes(signal.ticker));
+  }
+  
+  // Sort by creation date
+  signals.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  
+  return signals;
 };
 
 export const getSignalForTicker = async (ticker: string): Promise<SentimentSignal | null> => {

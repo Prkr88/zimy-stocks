@@ -1,18 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { 
-  getUserById, 
-  getUpcomingEarnings, 
-  getLatestSignals, 
-  getUserAlertHistory
-} from '@/lib/firestore';
-import { 
-  getDocs,
-  collection,
-  query,
-  where
-} from 'firebase/firestore';
+import { adminDb } from '@/lib/firebase-admin';
 import { emailService } from '@/lib/services/emailService';
-import { db } from '@/lib/firebase';
+import type { User, EarningsEvent, SentimentSignal, AlertHistory } from '@/types';
 
 export async function POST(request: NextRequest) {
   try {
@@ -42,13 +31,11 @@ export async function POST(request: NextRequest) {
       targetUserIds = userIds;
     } else {
       // Get all users who have enabled the summary type
-      const usersQuery = query(
-        collection(db, 'users'),
-        where(`preferences.${type}Summary`, '==', true),
-        where('preferences.emailNotifications', '==', true)
-      );
+      const usersSnapshot = await adminDb.collection('users')
+        .where(`preferences.${type}Summary`, '==', true)
+        .where('preferences.emailNotifications', '==', true)
+        .get();
       
-      const usersSnapshot = await getDocs(usersQuery);
       targetUserIds = usersSnapshot.docs.map(doc => doc.id);
     }
 
@@ -67,7 +54,8 @@ export async function POST(request: NextRequest) {
 
     for (const currentUserId of targetUserIds) {
       try {
-        const user = await getUserById(currentUserId);
+        const userDoc = await adminDb.collection('users').doc(currentUserId).get();
+        const user = userDoc.exists ? { id: userDoc.id, ...userDoc.data() } as User : null;
         
         if (!user || !user.preferences?.emailNotifications) {
           continue;
@@ -82,11 +70,9 @@ export async function POST(request: NextRequest) {
         }
 
         // Get user's watchlisted companies
-        const watchlistsQuery = query(
-          collection(db, 'watchlists'),
-          where('userId', '==', currentUserId)
-        );
-        const watchlistsSnapshot = await getDocs(watchlistsQuery);
+        const watchlistsSnapshot = await adminDb.collection('watchlists')
+          .where('userId', '==', currentUserId)
+          .get();
         const watchlistedTickers = watchlistsSnapshot.docs
           .flatMap(doc => doc.data().companies || [])
           .map((company: any) => company.ticker);
@@ -101,11 +87,37 @@ export async function POST(request: NextRequest) {
           ? new Date(Date.now() + 24 * 60 * 60 * 1000) // Next 24 hours
           : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // Next 7 days
 
-        const [upcomingEarnings, sentimentSignals, recentAlerts] = await Promise.all([
-          getUpcomingEarnings(['SP500', 'TA125'], undefined, 50),
-          getLatestSignals(watchlistedTickers),
-          getUserAlertHistory(currentUserId, 10),
-        ]);
+        // Get upcoming earnings - simplified to avoid complex index
+        const earningsSnapshot = await adminDb.collection('earnings_events')
+          .where('expectedDate', '>=', startDate)
+          .limit(100)
+          .get();
+        const allEarnings = earningsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as EarningsEvent));
+        const upcomingEarnings = allEarnings
+          .filter(event => 
+            new Date(event.expectedDate) <= endDate &&
+            ['SP500', 'TA125'].includes(event.market)
+          )
+          .sort((a, b) => new Date(a.expectedDate).getTime() - new Date(b.expectedDate).getTime())
+          .slice(0, 50);
+
+        // Get sentiment signals - simplified query to avoid index requirements
+        const signalsSnapshot = await adminDb.collection('signals_latest')
+          .limit(50)
+          .get();
+        const allSignals = signalsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SentimentSignal));
+        const sentimentSignals = allSignals
+          .filter(signal => watchlistedTickers.includes(signal.ticker))
+          .sort((a, b) => new Date(b.analyzedAt).getTime() - new Date(a.analyzedAt).getTime())
+          .slice(0, 20);
+
+        // Get recent alerts
+        const alertsSnapshot = await adminDb.collection('alert_history')
+          .where('userId', '==', currentUserId)
+          .orderBy('triggeredAt', 'desc')
+          .limit(10)
+          .get();
+        const recentAlerts = alertsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AlertHistory));
 
         // Filter earnings to only watchlisted companies
         const relevantEarnings = upcomingEarnings.filter(earnings => 
