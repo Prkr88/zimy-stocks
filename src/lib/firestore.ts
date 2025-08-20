@@ -131,7 +131,16 @@ export const getUpcomingEarnings = async (
   }
 
   const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as EarningsEvent));
+  return snapshot.docs.map(doc => {
+    const data = doc.data();
+    return {
+      id: doc.id,
+      ...data,
+      expectedDate: data.expectedDate?.toDate ? data.expectedDate.toDate() : data.expectedDate,
+      createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : data.createdAt,
+      updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : data.updatedAt,
+    } as EarningsEvent;
+  });
 };
 
 export const getEarningsForTickers = async (tickers: string[]): Promise<EarningsEvent[]> => {
@@ -145,7 +154,16 @@ export const getEarningsForTickers = async (tickers: string[]): Promise<Earnings
   );
   
   const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as EarningsEvent));
+  return snapshot.docs.map(doc => {
+    const data = doc.data();
+    return {
+      id: doc.id,
+      ...data,
+      expectedDate: data.expectedDate?.toDate ? data.expectedDate.toDate() : data.expectedDate,
+      createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : data.createdAt,
+      updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : data.updatedAt,
+    } as EarningsEvent;
+  });
 };
 
 // Sentiment signals operations

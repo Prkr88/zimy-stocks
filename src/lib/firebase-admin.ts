@@ -37,7 +37,7 @@ if (!getApps().length) {
           serviceAccountInitialized = true;
           console.log('Firebase Admin initialized with service account from file');
         } catch (fileError) {
-          console.warn('Failed to read service account file:', fileError.message);
+          console.warn('Failed to read service account file:', fileError instanceof Error ? fileError.message : fileError);
         }
       }
       
@@ -50,7 +50,7 @@ if (!getApps().length) {
       }
     }
   } catch (error) {
-    console.warn('Failed to initialize Firebase Admin, trying minimal config:', error.message);
+    console.warn('Failed to initialize Firebase Admin, trying minimal config:', error instanceof Error ? error.message : error);
     // Last resort: minimal configuration
     try {
       initializeApp({

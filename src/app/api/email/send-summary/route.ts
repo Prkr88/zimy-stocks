@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
         const allSignals = signalsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as SentimentSignal));
         const sentimentSignals = allSignals
           .filter(signal => watchlistedTickers.includes(signal.ticker))
-          .sort((a, b) => new Date(b.analyzedAt).getTime() - new Date(a.analyzedAt).getTime())
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
           .slice(0, 20);
 
         // Get recent alerts

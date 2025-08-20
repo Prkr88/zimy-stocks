@@ -98,7 +98,7 @@ export async function GET(request: NextRequest) {
     const endDate = searchParams.get('endDate');
     const market = searchParams.get('market');
 
-    let earningsQuery = adminDb.collection('earnings_events');
+    let earningsQuery: any = adminDb.collection('earnings_events');
 
     if (startDate) {
       earningsQuery = earningsQuery.where('expectedDate', '>=', new Date(startDate));
@@ -113,10 +113,16 @@ export async function GET(request: NextRequest) {
     }
 
     const snapshot = await earningsQuery.get();
-    const events = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
+    const events = snapshot.docs.map((doc: any) => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data,
+        expectedDate: data.expectedDate?.toDate ? data.expectedDate.toDate() : data.expectedDate,
+        createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : data.createdAt,
+        updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : data.updatedAt,
+      };
+    });
 
     return NextResponse.json({
       success: true,
