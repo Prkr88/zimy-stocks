@@ -1,0 +1,83 @@
+name: Scheduled Data Jobs
+
+on:
+  schedule:
+    # Run earnings fetch every day at 6 AM UTC
+    - cron: '0 6 * * *'
+    # Run sentiment analysis every day at 7 AM UTC (after earnings fetch)
+    - cron: '0 7 * * *'
+    # Run daily email summaries at 8 AM UTC
+    - cron: '0 8 * * *'
+    # Run weekly email summaries on Sundays at 9 AM UTC
+    - cron: '0 9 * * 0'
+  
+  workflow_dispatch:
+    inputs:
+      job_type:
+        description: 'Job type to run'
+        required: true
+        default: 'earnings'
+        type: choice
+        options:
+          - earnings
+          - sentiment
+          - daily_email
+          - weekly_email
+
+jobs:
+  fetch-earnings:
+    runs-on: ubuntu-latest
+    if: github.event.schedule == '0 6 * * *' || github.event.inputs.job_type == 'earnings'
+    steps:
+      - name: Fetch earnings data
+        run: |
+          curl -X POST "${{ secrets.APP_URL }}/api/earnings/fetch" \
+            -H "Content-Type: application/json" \
+            -H "x-api-key: ${{ secrets.API_KEY }}" \
+            -d '{
+              "startDate": "'$(date -d "today" -u +"%Y-%m-%dT%H:%M:%SZ")'",
+              "endDate": "'$(date -d "+30 days" -u +"%Y-%m-%dT%H:%M:%SZ")'",
+              "forceRefresh": false
+            }'
+
+  analyze-sentiment:
+    runs-on: ubuntu-latest
+    if: github.event.schedule == '0 7 * * *' || github.event.inputs.job_type == 'sentiment'
+    steps:
+      - name: Run sentiment analysis for all users
+        run: |
+          # This would need to be enhanced to get all user IDs
+          # For now, using a placeholder endpoint
+          curl -X POST "${{ secrets.APP_URL }}/api/sentiment/analyze" \
+            -H "Content-Type: application/json" \
+            -H "x-api-key: ${{ secrets.API_KEY }}" \
+            -d '{
+              "userId": "*",
+              "forceRefresh": false
+            }'
+
+  send-daily-emails:
+    runs-on: ubuntu-latest
+    if: github.event.schedule == '0 8 * * *' || github.event.inputs.job_type == 'daily_email'
+    steps:
+      - name: Send daily email summaries
+        run: |
+          curl -X POST "${{ secrets.APP_URL }}/api/email/send-summary" \
+            -H "Content-Type: application/json" \
+            -H "x-api-key: ${{ secrets.API_KEY }}" \
+            -d '{
+              "type": "daily"
+            }'
+
+  send-weekly-emails:
+    runs-on: ubuntu-latest
+    if: github.event.schedule == '0 9 * * 0' || github.event.inputs.job_type == 'weekly_email'
+    steps:
+      - name: Send weekly email summaries
+        run: |
+          curl -X POST "${{ secrets.APP_URL }}/api/email/send-summary" \
+            -H "Content-Type: application/json" \
+            -H "x-api-key: ${{ secrets.API_KEY }}" \
+            -d '{
+              "type": "weekly"
+            }'
