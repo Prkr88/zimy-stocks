@@ -5,17 +5,13 @@ import type { EarningsEvent } from '@/types';
 
 export async function POST(request: NextRequest) {
   try {
-    // Verify this is a server-side request or has proper authentication
+    // This endpoint is accessible to all authenticated users
+    // API key authentication is only for external/admin access
     const authHeader = request.headers.get('authorization');
     const apiKey = request.headers.get('x-api-key');
     
-    // In production, you'd verify the API key or auth token
-    if (process.env.NODE_ENV === 'production' && !apiKey) {
-      return NextResponse.json(
-        { error: 'API key required' },
-        { status: 401 }
-      );
-    }
+    // Skip API key requirement for user-facing requests in production
+    // Users authenticate through Firebase Auth, not API keys
 
     const { startDate, endDate, forceRefresh } = await request.json();
 

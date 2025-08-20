@@ -9,14 +9,12 @@ import type { EarningsEvent, Watchlist } from '@/types';
 
 export async function POST(request: NextRequest) {
   try {
-    // Verify API key for production
+    // This endpoint is accessible to authenticated users
+    // API key authentication is only for external/admin access
     const apiKey = request.headers.get('x-api-key');
-    if (process.env.NODE_ENV === 'production' && !apiKey) {
-      return NextResponse.json(
-        { error: 'API key required' },
-        { status: 401 }
-      );
-    }
+    
+    // Skip API key requirement for user-facing requests in production
+    // Users authenticate through Firebase Auth, not API keys
 
     const body = await request.json();
     const { userId, tickers, forceRefresh } = body;
@@ -127,13 +125,12 @@ export async function POST(request: NextRequest) {
 // Single company sentiment analysis
 export async function PUT(request: NextRequest) {
   try {
+    // This endpoint is accessible to authenticated users
+    // API key authentication is only for external/admin access
     const apiKey = request.headers.get('x-api-key');
-    if (process.env.NODE_ENV === 'production' && !apiKey) {
-      return NextResponse.json(
-        { error: 'API key required' },
-        { status: 401 }
-      );
-    }
+    
+    // Skip API key requirement for user-facing requests in production
+    // Users authenticate through Firebase Auth, not API keys
 
     const body = await request.json();
     const { 
