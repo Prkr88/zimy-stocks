@@ -41,5 +41,13 @@
     "tailwindcss": "^3.4.1",
     "ts-jest": "^29.4.1",
     "typescript": "^5"
+  },
+  "overrides": {
+    "@browserbasehq/stagehand": {
+      "openai": "^5.12.2"
+    },
+    "@langchain/community": {
+      "firebase-admin": "^13.4.0"
+    }
   }
 }
