@@ -1,53 +1,30 @@
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
-import * as fs from 'fs';
-import * as path from 'path';
 
 // Initialize Firebase Admin if it hasn't been initialized already
 if (!getApps().length) {
   const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT_ID;
   
   try {
-    if (process.env.NODE_ENV === 'production') {
-      // In production, try service account key from environment variable
-      if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-        const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+    // First, try to use GCP_SA_KEY_JSON environment variable (works in both dev and production)
+    if (process.env.GCP_SA_KEY_JSON) {
+      try {
+        const serviceAccount = JSON.parse(process.env.GCP_SA_KEY_JSON);
         initializeApp({
           credential: cert(serviceAccount),
           projectId,
         });
-      } else {
-        // Fallback to default credentials (for Google Cloud environments)
-        initializeApp({
-          projectId,
-        });
+        console.log('Firebase Admin initialized with service account from GCP_SA_KEY_JSON environment variable');
+      } catch (parseError) {
+        console.error('Failed to parse GCP_SA_KEY_JSON:', parseError instanceof Error ? parseError.message : parseError);
+        throw parseError;
       }
     } else {
-      // In development, try service account file if it exists
-      const serviceAccountPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
-      let serviceAccountInitialized = false;
-      
-      if (serviceAccountPath && fs.existsSync(serviceAccountPath)) {
-        try {
-          const serviceAccount = JSON.parse(fs.readFileSync(serviceAccountPath, 'utf8'));
-          initializeApp({
-            credential: cert(serviceAccount),
-            projectId,
-          });
-          serviceAccountInitialized = true;
-          console.log('Firebase Admin initialized with service account from file');
-        } catch (fileError) {
-          console.warn('Failed to read service account file:', fileError instanceof Error ? fileError.message : fileError);
-        }
-      }
-      
-      if (!serviceAccountInitialized) {
-        // Use default credentials or application default credentials
-        initializeApp({
-          projectId,
-        });
-        console.log('Firebase Admin initialized with default credentials');
-      }
+      // Fallback to default credentials (for Google Cloud environments)
+      initializeApp({
+        projectId,
+      });
+      console.log('Firebase Admin initialized with default credentials (no GCP_SA_KEY_JSON found)');
     }
   } catch (error) {
     console.warn('Failed to initialize Firebase Admin, trying minimal config:', error instanceof Error ? error.message : error);
