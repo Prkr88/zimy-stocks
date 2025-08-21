@@ -6,8 +6,7 @@ import ProtectedRoute from '@/components/ProtectedRoute';
 import Navbar from '@/components/Navbar';
 import EarningsFilter, { FilterOptions } from '@/components/dashboard/EarningsFilter';
 import EarningsGrid from '@/components/dashboard/EarningsGrid';
-import DataRefreshButton from '@/components/dashboard/DataRefreshButton';
-import SentimentAnalysisButton from '@/components/dashboard/SentimentAnalysisButton';
+import FullSystemUpdateButton from '@/components/dashboard/FullSystemUpdateButton';
 import NotificationSetup from '@/components/NotificationSetup';
 import {
   getUpcomingEarnings,
@@ -152,23 +151,19 @@ export default function DashboardPage() {
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
         <Navbar />
         
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 md:px-6 lg:px-8 py-6 md:py-8">
           <div className="mb-8">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+              <div className="min-w-0 flex-1">
+                <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">
                   Earnings Dashboard
                 </h1>
-                <p className="mt-2 text-gray-600 dark:text-gray-400">
-                  Track upcoming earnings with AI-powered sentiment insights
+                <p className="mt-2 text-sm md:text-base text-gray-600 dark:text-gray-400">
+                  S&P 500 Technology Sector - Intelligent analysis for companies with upcoming earnings
                 </p>
               </div>
-              <div className="flex items-center space-x-3">
-                <SentimentAnalysisButton 
-                  userId={user!.uid} 
-                  onAnalysisComplete={loadDashboardData} 
-                />
-                <DataRefreshButton onRefreshComplete={loadDashboardData} />
+              <div className="flex items-center flex-shrink-0">
+                <FullSystemUpdateButton onUpdateComplete={loadDashboardData} />
               </div>
             </div>
           </div>
@@ -177,35 +172,73 @@ export default function DashboardPage() {
             <NotificationSetup />
           </div>
 
+          {/* Analyst Insights Summary */}
+          <div className="mb-6">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
+              Analyst Insights Summary
+            </h2>
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 max-w-4xl mx-auto">
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">
+                    {events.length}
+                  </div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                    Tracked Companies
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-green-600 dark:text-green-400">
+                    {watchlistedTickers.length}
+                  </div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                    In Your Watchlist
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-purple-600 dark:text-purple-400">
+                    {signals.length}
+                  </div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                    With AI Insights
+                  </div>
+                </div>
+              </div>
+              <div className="mt-4 text-center text-sm text-gray-500 dark:text-gray-400">
+                Click on any stock below to view detailed analyst insights and recommendations
+              </div>
+            </div>
+          </div>
+
           {error && (
             <div className="mb-6 p-4 bg-red-100 border border-red-400 text-red-700 rounded dark:bg-red-900 dark:border-red-700 dark:text-red-100">
               {error}
             </div>
           )}
 
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-            <div className="lg:col-span-1">
+          <div className="grid grid-cols-1 lg:grid-cols-5 xl:grid-cols-4 2xl:grid-cols-5 gap-4 lg:gap-6">
+            <div className="lg:col-span-1 xl:col-span-1 2xl:col-span-1 space-y-4 lg:space-y-6">
               <EarningsFilter
                 onFilterChange={setFilters}
                 initialFilters={filters}
               />
               
               {/* Watchlist Summary */}
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 lg:p-6 min-w-0 overflow-hidden">
                 <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
                   Your Watchlist
                 </h3>
-                <div className="text-sm text-gray-600 dark:text-gray-400">
+                <div className="text-sm text-gray-600 dark:text-gray-400 mb-3">
                   {watchlistedTickers.length} companies tracked
                 </div>
                 {watchlistedTickers.slice(0, 5).map(ticker => (
-                  <div key={ticker} className="flex items-center justify-between py-1">
-                    <span className="text-sm font-medium text-gray-900 dark:text-white">
+                  <div key={ticker} className="flex items-center justify-between py-1 min-w-0">
+                    <span className="text-sm font-medium text-gray-900 dark:text-white truncate flex-1 mr-2">
                       {ticker}
                     </span>
                     <button
                       onClick={() => handleRemoveFromWatchlist(ticker)}
-                      className="text-red-500 hover:text-red-700 text-xs"
+                      className="text-red-500 hover:text-red-700 text-xs flex-shrink-0"
                     >
                       Remove
                     </button>
@@ -219,7 +252,7 @@ export default function DashboardPage() {
               </div>
             </div>
             
-            <div className="lg:col-span-3">
+            <div className="lg:col-span-4 xl:col-span-3 2xl:col-span-4">
               <EarningsGrid
                 events={events}
                 signals={signals}

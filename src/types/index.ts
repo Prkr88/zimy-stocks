@@ -51,6 +51,18 @@ export interface EarningsEvent {
   fiscalYear: number;
   analystEstimate?: number;
   previousEarnings?: number;
+  // Enhanced data from agents
+  currentPrice?: number;
+  priceChange?: number;
+  priceChangePercent?: number;
+  volume?: number;
+  metrics?: StockMetrics;
+  companyDetails?: CompanyDetails;
+  news?: string[];
+  newsSummary?: string;
+  technicalAnalysis?: string;
+  newsLastUpdated?: Date;
+  financialsLastUpdated?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -149,4 +161,73 @@ export interface DailyUsageMetrics {
   totalCost: number;
   uniqueCompanies: number;
   alertsSent: number;
+}
+
+// Enhanced stock data types for agent system
+export interface StockMetrics {
+  open: number;
+  high: number;
+  low: number;
+  previousClose: number;
+  marketCap?: number;
+  sharesOutstanding?: number;
+  pe?: number;
+  eps?: number;
+  beta?: number;
+}
+
+export interface CompanyDetails {
+  description?: string;
+  sector?: string;
+  industry?: string;
+  employees?: number;
+  homepage?: string;
+  ceo?: string;
+  founded?: number;
+  headquarters?: string;
+}
+
+export interface StockData {
+  id: string;
+  ticker: string;
+  name: string;
+  price: number;
+  change: number;
+  changePercent: number;
+  volume: number;
+  metrics: StockMetrics;
+  details: CompanyDetails;
+  analysis?: string;
+  lastUpdated: Date;
+  updatedAt: Date;
+}
+
+export interface StockNews {
+  id: string;
+  ticker: string;
+  news: string[];
+  summary: string;
+  sentiment?: 'positive' | 'neutral' | 'negative';
+  lastUpdated: Date;
+  updatedAt: Date;
+}
+
+// Agent update results
+export interface AgentUpdateResult {
+  ticker: string;
+  success: boolean;
+  error?: string;
+  newsUpdated?: boolean;
+  financialsUpdated?: boolean;
+  lastUpdated: Date;
+}
+
+export interface BatchUpdateResult {
+  totalProcessed: number;
+  successCount: number;
+  errorCount: number;
+  results: AgentUpdateResult[];
+  duration: number;
+  startTime: Date;
+  endTime: Date;
 }

@@ -64,7 +64,7 @@ export default function EarningsFilter({ onFilterChange, initialFilters }: Earni
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 mb-6">
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 lg:p-6 mb-6 min-w-0 overflow-hidden">
       <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Filters</h3>
       
       {/* Search */}
@@ -76,8 +76,8 @@ export default function EarningsFilter({ onFilterChange, initialFilters }: Earni
           type="text"
           value={filters.searchTerm}
           onChange={(e) => handleSearchChange(e.target.value)}
-          placeholder="Search by company name or ticker..."
-          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:placeholder-gray-400"
+          placeholder="Search companies..."
+          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white dark:placeholder-gray-400 text-sm"
         />
       </div>
 
@@ -88,14 +88,14 @@ export default function EarningsFilter({ onFilterChange, initialFilters }: Earni
         </label>
         <div className="space-y-2">
           {AVAILABLE_MARKETS.map(market => (
-            <label key={market} className="flex items-center">
+            <label key={market} className="flex items-start gap-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-1 rounded min-w-0">
               <input
                 type="checkbox"
                 checked={filters.markets.includes(market)}
                 onChange={(e) => handleMarketChange(market, e.target.checked)}
-                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded mt-0.5 flex-shrink-0"
               />
-              <span className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+              <span className="text-sm text-gray-700 dark:text-gray-300 leading-tight truncate">
                 {market === 'SP500' ? 'S&P 500' : 'TA-125'}
               </span>
             </label>
@@ -108,16 +108,16 @@ export default function EarningsFilter({ onFilterChange, initialFilters }: Earni
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
           Sectors
         </label>
-        <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto">
+        <div className="space-y-2 max-h-48 overflow-y-auto">
           {AVAILABLE_SECTORS.map(sector => (
-            <label key={sector} className="flex items-center">
+            <label key={sector} className="flex items-start gap-2 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 p-1 rounded min-w-0">
               <input
                 type="checkbox"
                 checked={filters.sectors.includes(sector)}
                 onChange={(e) => handleSectorChange(sector, e.target.checked)}
-                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded mt-0.5 flex-shrink-0"
               />
-              <span className="ml-2 text-xs text-gray-700 dark:text-gray-300">
+              <span className="text-sm text-gray-700 dark:text-gray-300 leading-tight break-words line-clamp-2 min-w-0">
                 {sector}
               </span>
             </label>

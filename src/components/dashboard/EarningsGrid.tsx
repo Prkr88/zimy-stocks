@@ -23,6 +23,39 @@ export default function EarningsGrid({
   onRemoveFromWatchlist,
 }: EarningsGridProps) {
   const [filteredEvents, setFilteredEvents] = useState<EarningsEvent[]>([]);
+  const [ratingsMap, setRatingsMap] = useState<Map<string, boolean>>(new Map());
+
+  // Load ratings for all events to enable sorting
+  useEffect(() => {
+    const loadAllRatings = async () => {
+      const ratingsPromises = events.map(async (event) => {
+        try {
+          const response = await fetch(`/api/stocks/${event.ticker}/analyst-insights`);
+          if (response.ok) {
+            const data = await response.json();
+            return { 
+              ticker: event.ticker, 
+              hasRating: data.success && data.insights.consensus?.rating 
+            };
+          }
+        } catch (error) {
+          console.error(`Error loading rating for ${event.ticker}:`, error);
+        }
+        return { ticker: event.ticker, hasRating: false };
+      });
+
+      const ratings = await Promise.all(ratingsPromises);
+      const newRatingsMap = new Map();
+      ratings.forEach(({ ticker, hasRating }) => {
+        newRatingsMap.set(ticker, hasRating);
+      });
+      setRatingsMap(newRatingsMap);
+    };
+
+    if (events.length > 0) {
+      loadAllRatings();
+    }
+  }, [events]);
 
   useEffect(() => {
     let filtered = events;
@@ -46,8 +79,18 @@ export default function EarningsGrid({
       );
     }
 
+    // Sort by ratings - cards with ratings appear first
+    filtered = filtered.sort((a, b) => {
+      const aHasRating = ratingsMap.get(a.ticker) || false;
+      const bHasRating = ratingsMap.get(b.ticker) || false;
+      
+      if (aHasRating && !bHasRating) return -1;
+      if (!aHasRating && bHasRating) return 1;
+      return 0; // Keep original order for same rating status
+    });
+
     setFilteredEvents(filtered);
-  }, [events, filters]);
+  }, [events, filters, ratingsMap]);
 
   const getSignalForTicker = (ticker: string): SentimentSignal | undefined => {
     return signals.find(signal => signal.ticker === ticker);
@@ -91,7 +134,7 @@ export default function EarningsGrid({
         </div>
       </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-3 gap-4 sm:gap-6">
         {filteredEvents.map(event => (
           <EarningsCard
             key={event.id}
