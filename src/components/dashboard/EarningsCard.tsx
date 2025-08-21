@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { EarningsEvent, SentimentSignal } from '@/types';
 import { format } from 'date-fns';
 import AnalystInsightsCard from './AnalystInsightsCard';
@@ -26,12 +26,7 @@ export default function EarningsCard({
   const [loading, setLoading] = useState(true); // Start as true to prevent hydration mismatch
   const [mounted, setMounted] = useState(false);
 
-  useEffect(() => {
-    setMounted(true);
-    loadAnalystRating();
-  }, [event.ticker]);
-
-  const loadAnalystRating = async () => {
+  const loadAnalystRating = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch(`/api/stocks/${event.ticker}/analyst-insights`);
@@ -47,7 +42,13 @@ export default function EarningsCard({
     } finally {
       setLoading(false);
     }
-  };
+  }, [event.ticker]);
+
+  useEffect(() => {
+    setMounted(true);
+    loadAnalystRating();
+  }, [event.ticker, loadAnalystRating]);
+
   const getRatingColor = (rating?: string | null) => {
     if (!rating) return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
     

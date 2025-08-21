@@ -330,7 +330,12 @@ Rules:
       updated: number;
     };
   }> {
-    const results = [];
+    const results: Array<{
+      ticker: string;
+      success: boolean;
+      action: 'created' | 'updated' | 'error';
+      message: string;
+    }> = [];
     let successful = 0;
     let failed = 0;
     let created = 0;

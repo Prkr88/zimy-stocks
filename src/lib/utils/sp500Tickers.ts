@@ -431,7 +431,15 @@ export class SP500EarningsManager {
       // Limit the companies to process
       companies = companies.slice(0, limit);
       
-      const results = [];
+      const results: Array<{
+        ticker: string;
+        companyName: string;
+        sector: string;
+        industry: string;
+        nextEarningsDate: Date | null;
+        quarterlyPattern: 'Q1' | 'Q2' | 'Q3' | 'Q4' | null;
+        confidence: number;
+      }> = [];
       
       // Process companies in small batches to respect rate limits
       const batchSize = 5;

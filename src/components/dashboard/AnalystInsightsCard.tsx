@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 interface AnalystConsensus {
   eps_estimate: number | null;
@@ -55,12 +55,7 @@ export default function AnalystInsightsCard({ ticker, companyName }: AnalystInsi
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [mounted, setMounted] = useState(false);
 
-  useEffect(() => {
-    setMounted(true);
-    loadInsights();
-  }, [ticker]);
-
-  const loadInsights = async () => {
+  const loadInsights = useCallback(async () => {
     try {
       setLoading(true);
       setError('');
@@ -89,7 +84,12 @@ export default function AnalystInsightsCard({ ticker, companyName }: AnalystInsi
     } finally {
       setLoading(false);
     }
-  };
+  }, [ticker]);
+
+  useEffect(() => {
+    setMounted(true);
+    loadInsights();
+  }, [ticker, loadInsights]);
 
   const refreshInsights = async () => {
     try {
@@ -370,7 +370,7 @@ export default function AnalystInsightsCard({ ticker, companyName }: AnalystInsi
                   <div className="mt-1 space-y-1">
                     {insights.sentiment.top_quotes.slice(0, 2).map((quote, index) => (
                       <div key={index} className="text-xs italic text-gray-700 dark:text-gray-300 p-2 bg-gray-50 dark:bg-gray-700 rounded">
-                        "{quote}"
+                        &ldquo;{quote}&rdquo;
                       </div>
                     ))}
                   </div>

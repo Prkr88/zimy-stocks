@@ -52,8 +52,8 @@ export class EarningsAgent {
       
       // Convert S&P 500 results to standard format
       const formattedSP500Results = sp500Results
-        .filter(company => company.nextEarningsDate) // Only include companies with earnings dates
-        .map(company => ({
+        .filter((company: any) => company.nextEarningsDate) // Only include companies with earnings dates
+        .map((company: any) => ({
           ticker: company.ticker,
           companyName: company.companyName,
           reportDate: company.nextEarningsDate!,
@@ -451,6 +451,23 @@ export class EarningsAgent {
   private guessMarket(ticker: string): 'SP500' | 'TA125' {
     // Very basic heuristic - in reality you'd want a proper mapping
     return 'SP500'; // Default to S&P 500
+  }
+
+  /**
+   * Guess quarter based on date
+   */
+  private guessQuarter(date: Date): string {
+    const month = date.getMonth() + 1; // getMonth() returns 0-11
+    
+    if (month >= 1 && month <= 3) {
+      return 'Q1';
+    } else if (month >= 4 && month <= 6) {
+      return 'Q2';
+    } else if (month >= 7 && month <= 9) {
+      return 'Q3';
+    } else {
+      return 'Q4';
+    }
   }
 
   /**

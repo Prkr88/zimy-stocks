@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/components/AuthProvider';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import Navbar from '@/components/Navbar';
@@ -27,13 +27,7 @@ export default function AlertsPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<'rules' | 'settings' | 'history'>('rules');
 
-  useEffect(() => {
-    if (user) {
-      loadAlertsData();
-    }
-  }, [user]);
-
-  const loadAlertsData = async () => {
+  const loadAlertsData = useCallback(async () => {
     try {
       setLoading(true);
       setError('');
@@ -53,7 +47,13 @@ export default function AlertsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    if (user) {
+      loadAlertsData();
+    }
+  }, [user, loadAlertsData]);
 
   const handleCreateRule = async (ruleData: Omit<AlertRule, 'id' | 'createdAt' | 'updatedAt'>) => {
     try {

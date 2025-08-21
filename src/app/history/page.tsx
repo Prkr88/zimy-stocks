@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/components/AuthProvider';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import Navbar from '@/components/Navbar';
@@ -16,13 +16,7 @@ export default function HistoryPage() {
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
 
-  useEffect(() => {
-    if (user) {
-      loadHistoryData();
-    }
-  }, [user]);
-
-  const loadHistoryData = async () => {
+  const loadHistoryData = useCallback(async () => {
     try {
       setLoading(true);
       setError('');
@@ -53,7 +47,13 @@ export default function HistoryPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    if (user) {
+      loadHistoryData();
+    }
+  }, [user, loadHistoryData]);
 
   const filteredCompanies = companies.filter(company =>
     company.ticker.toLowerCase().includes(searchTerm.toLowerCase()) ||

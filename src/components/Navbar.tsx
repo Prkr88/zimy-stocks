@@ -4,6 +4,7 @@ import { useAuth } from './AuthProvider';
 import { logOut } from '@/lib/auth';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 
 export default function Navbar() {
   const { user } = useAuth();
@@ -56,10 +57,12 @@ export default function Navbar() {
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-2">
               {user.photoURL && (
-                <img
+                <Image
                   className="h-8 w-8 rounded-full"
                   src={user.photoURL}
                   alt={user.displayName || user.email || ''}
+                  width={32}
+                  height={32}
                 />
               )}
               <span className="text-sm text-gray-700 dark:text-gray-300">
