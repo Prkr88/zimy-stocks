@@ -23,7 +23,20 @@ export default function EarningsGrid({
   onRemoveFromWatchlist,
 }: EarningsGridProps) {
   const [filteredEvents, setFilteredEvents] = useState<EarningsEvent[]>([]);
-  const [ratingsMap, setRatingsMap] = useState<Map<string, boolean>>(new Map());
+  const [ratingsMap, setRatingsMap] = useState<Map<string, { hasRating: boolean; rating?: string; priority: number }>>(new Map());
+
+  // Helper function to get rating priority (higher is better)
+  const getRatingPriority = (rating: string | null): number => {
+    if (!rating) return 0;
+    switch (rating) {
+      case 'Strong Buy': return 5;
+      case 'Buy': return 4;
+      case 'Hold': return 3;
+      case 'Sell': return 2;
+      case 'Strong Sell': return 1;
+      default: return 0;
+    }
+  };
 
   // Load ratings for all events to enable sorting
   useEffect(() => {
@@ -33,21 +46,24 @@ export default function EarningsGrid({
           const response = await fetch(`/api/stocks/${event.ticker}/analyst-insights`);
           if (response.ok) {
             const data = await response.json();
+            const rating = data.success ? data.insights.consensus?.rating : null;
             return { 
               ticker: event.ticker, 
-              hasRating: data.success && data.insights.consensus?.rating 
+              hasRating: Boolean(rating),
+              rating,
+              priority: getRatingPriority(rating)
             };
           }
         } catch (error) {
           console.error(`Error loading rating for ${event.ticker}:`, error);
         }
-        return { ticker: event.ticker, hasRating: false };
+        return { ticker: event.ticker, hasRating: false, rating: null, priority: 0 };
       });
 
       const ratings = await Promise.all(ratingsPromises);
       const newRatingsMap = new Map();
-      ratings.forEach(({ ticker, hasRating }) => {
-        newRatingsMap.set(ticker, hasRating);
+      ratings.forEach(({ ticker, hasRating, rating, priority }) => {
+        newRatingsMap.set(ticker, { hasRating, rating, priority });
       });
       setRatingsMap(newRatingsMap);
     };
@@ -79,13 +95,20 @@ export default function EarningsGrid({
       );
     }
 
-    // Sort by ratings - cards with ratings appear first
+    // Sort by ratings - cards with ratings appear first, then by rating quality
     filtered = filtered.sort((a, b) => {
-      const aHasRating = ratingsMap.get(a.ticker) || false;
-      const bHasRating = ratingsMap.get(b.ticker) || false;
+      const aRatingData = ratingsMap.get(a.ticker) || { hasRating: false, priority: 0 };
+      const bRatingData = ratingsMap.get(b.ticker) || { hasRating: false, priority: 0 };
       
-      if (aHasRating && !bHasRating) return -1;
-      if (!aHasRating && bHasRating) return 1;
+      // First, sort by whether they have ratings at all
+      if (aRatingData.hasRating && !bRatingData.hasRating) return -1;
+      if (!aRatingData.hasRating && bRatingData.hasRating) return 1;
+      
+      // If both have ratings, sort by rating quality (Strong Buy first, etc.)
+      if (aRatingData.hasRating && bRatingData.hasRating) {
+        return bRatingData.priority - aRatingData.priority;
+      }
+      
       return 0; // Keep original order for same rating status
     });
 
@@ -126,9 +149,14 @@ export default function EarningsGrid({
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-          Upcoming Earnings ({filteredEvents.length})
-        </h2>
+        <div>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+            Upcoming Earnings ({filteredEvents.length})
+          </h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            📊 Sorted by analyst ratings • {Array.from(ratingsMap.values()).filter(r => r.hasRating).length} with ratings
+          </p>
+        </div>
         <div className="text-sm text-gray-500 dark:text-gray-400">
           {signals.length} companies with AI insights
         </div>

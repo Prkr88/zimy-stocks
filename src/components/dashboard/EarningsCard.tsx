@@ -109,7 +109,7 @@ export default function EarningsCard({
   };
 
   return (
-    <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 sm:p-6 hover:shadow-lg transition-shadow min-w-0 overflow-hidden flex flex-col ${showAnalystInsights ? 'h-auto' : 'h-[420px]'}`}>
+    <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-md p-4 sm:p-6 hover:shadow-lg transition-shadow min-w-0 flex flex-col ${showAnalystInsights ? 'h-auto' : 'h-auto min-h-[380px] sm:h-[420px]'}`}>
       {/* Header Section */}
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 mb-4">
         <div className="flex-1 min-w-0 overflow-hidden">
@@ -152,7 +152,7 @@ export default function EarningsCard({
       </div>
 
       {/* Data Grid Section */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-4 flex-shrink-0">
         <div className="min-w-0 overflow-hidden">
           <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Date</p>
           <p className="text-sm font-medium text-gray-900 dark:text-white">
@@ -180,7 +180,7 @@ export default function EarningsCard({
       </div>
 
       {sentiment && (
-        <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+        <div className="border-t border-gray-200 dark:border-gray-700 pt-4 flex-shrink-0">
           <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
             AI Insight
           </p>
@@ -197,7 +197,7 @@ export default function EarningsCard({
       )}
 
       {event.analystEstimate && (
-        <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
+        <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4 flex-shrink-0">
           <div className="grid grid-cols-2 gap-4">
             <div>
               <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide">
@@ -221,18 +221,32 @@ export default function EarningsCard({
         </div>
       )}
 
-      {/* Analyst Insights Toggle */}
-      <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
+      {/* Analyst Insights Toggle - Always at bottom */}
+      <div className="border-t border-gray-200 dark:border-gray-700 pt-3 mt-auto">
         <button
           onClick={() => setShowAnalystInsights(!showAnalystInsights)}
-          className="w-full flex items-center justify-between p-3 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+          className="w-full flex items-center justify-between p-3 sm:p-4 text-sm sm:text-base font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors min-h-[52px] touch-manipulation focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
         >
-          <span className="flex items-center">
-            📊 Analyst Insights & Recommendations
+          <span className="flex items-center flex-1">
+            <span className="text-lg sm:text-xl mr-2 flex-shrink-0">📊</span>
+            <span className="text-left">Analyst Insights</span>
           </span>
-          <span className={`transform transition-transform ${showAnalystInsights ? 'rotate-180' : ''}`}>
-            ▼
-          </span>
+          <div className={`transform transition-transform duration-200 flex-shrink-0 ml-2 ${showAnalystInsights ? 'rotate-180' : ''}`}>
+            <svg 
+              className="w-6 h-6 sm:w-7 sm:h-7" 
+              fill="none" 
+              stroke="currentColor" 
+              viewBox="0 0 24 24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                strokeWidth={2.5} 
+                d="M19 9l-7 7-7-7" 
+              />
+            </svg>
+          </div>
         </button>
       </div>
 
