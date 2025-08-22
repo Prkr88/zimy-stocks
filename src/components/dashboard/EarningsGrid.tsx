@@ -26,16 +26,30 @@ export default function EarningsGrid({
   const [ratingsMap, setRatingsMap] = useState<Map<string, { hasRating: boolean; rating?: string; priority: number }>>(new Map());
   const [ratingsLoaded, setRatingsLoaded] = useState(false);
 
-  // Helper function to get rating priority (higher is better)
+  // Helper function to get rating priority for stable sorting
+  // Higher priority = appears first in the list
   const getRatingPriority = (rating: string | null): number => {
-    if (!rating) return 0;
+    if (!rating) return 0; // 'No Rating' - appears last
     switch (rating) {
-      case 'Strong Buy': return 5;
-      case 'Buy': return 4;
-      case 'Hold': return 3;
-      case 'Sell': return 2;
-      case 'Strong Sell': return 1;
-      default: return 0;
+      case 'Strong Buy': return 6;  // Appears first
+      case 'Buy': return 5;         // Second
+      case 'Hold': return 4;        // Third
+      case 'Sell': return 3;        // Fourth
+      case 'Strong Sell': return 2; // Fifth
+      default: return 1;            // Unknown ratings before 'No Rating'
+    }
+  };
+
+  // Helper function to get rating display order for sorting
+  const getRatingDisplayOrder = (rating: string | null): string => {
+    if (!rating) return 'Z_No Rating'; // Ensures it sorts last
+    switch (rating) {
+      case 'Strong Buy': return 'A_Strong Buy';
+      case 'Buy': return 'B_Buy';
+      case 'Hold': return 'C_Hold';
+      case 'Sell': return 'D_Sell';
+      case 'Strong Sell': return 'E_Strong Sell';
+      default: return 'Y_' + rating; // Unknown ratings before 'No Rating'
     }
   };
 
@@ -128,28 +142,50 @@ export default function EarningsGrid({
       );
     }
 
-    // Always apply sorting - use ratings if available, fallback to date-based sorting
+    // Apply stable sorting: Strong Buy → Buy → Hold → Sell → Strong Sell → No Rating
     filtered = filtered.sort((a, b) => {
-      // If ratings are loaded, use rating-based sorting
+      // If ratings are loaded, use the explicit rating order
       if (ratingsLoaded && ratingsMap.size > 0) {
-        const aRatingData = ratingsMap.get(a.ticker) || { hasRating: false, priority: 0 };
-        const bRatingData = ratingsMap.get(b.ticker) || { hasRating: false, priority: 0 };
+        const aRatingData = ratingsMap.get(a.ticker) || { hasRating: false, rating: null, priority: 0 };
+        const bRatingData = ratingsMap.get(b.ticker) || { hasRating: false, rating: null, priority: 0 };
         
-        // First, sort by whether they have ratings at all
-        if (aRatingData.hasRating && !bRatingData.hasRating) return -1;
-        if (!aRatingData.hasRating && bRatingData.hasRating) return 1;
+        // Get the rating values
+        const aRating = aRatingData.rating || null;
+        const bRating = bRatingData.rating || null;
         
-        // If both have ratings, sort by rating quality (Strong Buy first, etc.)
-        if (aRatingData.hasRating && bRatingData.hasRating) {
-          return bRatingData.priority - aRatingData.priority;
+        // Get priority scores (higher = appears first)
+        const aPriority = getRatingPriority(aRating);
+        const bPriority = getRatingPriority(bRating);
+        
+        // Sort by priority (higher priority first)
+        if (aPriority !== bPriority) {
+          return bPriority - aPriority;
+        }
+        
+        // If same rating priority, sort alphabetically by ticker for consistency
+        if (aPriority === bPriority && aPriority > 0) {
+          return a.ticker.localeCompare(b.ticker);
         }
       }
       
-      // Fallback: sort by earnings date (closest first)
+      // For same rating level or when ratings not loaded, sort by earnings date (closest first)
       const aDate = new Date(a.expectedDate);
       const bDate = new Date(b.expectedDate);
       return aDate.getTime() - bDate.getTime();
     });
+
+    // Debug logging for sorting verification (remove in production)
+    if (ratingsLoaded && process.env.NODE_ENV === 'development') {
+      console.log('📊 Sorting Results:', filtered.slice(0, 10).map((event, index) => {
+        const ratingData = ratingsMap.get(event.ticker);
+        return {
+          position: index + 1,
+          ticker: event.ticker,
+          rating: ratingData?.rating || 'No Rating',
+          priority: getRatingPriority(ratingData?.rating || null)
+        };
+      }));
+    }
 
     setFilteredEvents(filtered);
   }, [events, filters, ratingsMap, ratingsLoaded]);
@@ -194,9 +230,9 @@ export default function EarningsGrid({
           </h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             {ratingsLoaded ? (
-              <>📊 Sorted by analyst ratings • {Array.from(ratingsMap.values()).filter(r => r.hasRating).length} with ratings</>
+              <>📊 Sorted: Strong Buy → Buy → Hold → Sell → Strong Sell → No Rating • {Array.from(ratingsMap.values()).filter(r => r.hasRating).length} with ratings</>
             ) : (
-              <>⏳ Loading ratings for sorting...</>
+              <>⏳ Loading ratings for stable sorting...</>
             )}
           </p>
         </div>
