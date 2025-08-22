@@ -56,14 +56,19 @@ export default function EarningsGrid({
   // Load ratings for all events to enable sorting
   useEffect(() => {
     const loadAllRatings = async () => {
+      if (events.length === 0) {
+        setRatingsLoaded(true);
+        return;
+      }
+
       setRatingsLoaded(false);
+      setRatingsMap(new Map()); // Clear previous ratings
       
-      // First, try to load ratings from a batch API if available
+      const tickers = events.map(e => e.ticker);
+      console.log('🔍 Loading ratings for tickers:', tickers);
+      
+      // Try batch loading first (more efficient for Vercel)
       try {
-        const tickers = events.map(e => e.ticker);
-        console.log('🔍 Loading ratings for tickers:', tickers);
-        
-        // Try batch loading first (more efficient for Vercel)
         const batchResponse = await fetch('/api/analyst-insights/batch', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -72,13 +77,18 @@ export default function EarningsGrid({
         
         if (batchResponse.ok) {
           const batchData = await batchResponse.json();
-          console.log('📊 Batch ratings response:', batchData);
+          console.log('📊 Batch ratings response received:', batchData.success);
           
           if (batchData.success && batchData.results) {
             const newRatingsMap = new Map();
+            let ratingsFound = 0;
             
-            Object.entries(batchData.results).forEach(([ticker, result]: [string, any]) => {
+            // Process all tickers, ensuring we have an entry for each
+            tickers.forEach(ticker => {
+              const result = batchData.results[ticker];
               const rating = result?.insights?.consensus?.rating || null;
+              if (rating) ratingsFound++;
+              
               newRatingsMap.set(ticker, {
                 hasRating: Boolean(rating),
                 rating,
@@ -86,9 +96,9 @@ export default function EarningsGrid({
               });
             });
             
+            console.log(`✅ Batch loading complete: ${ratingsFound}/${tickers.length} tickers have ratings`);
             setRatingsMap(newRatingsMap);
             setRatingsLoaded(true);
-            console.log('✅ Batch ratings loaded successfully');
             return; // Skip individual loading if batch worked
           }
         }
@@ -158,11 +168,7 @@ export default function EarningsGrid({
       console.log('✅ Individual ratings loading completed');
     };
 
-    if (events.length > 0) {
-      loadAllRatings();
-    } else {
-      setRatingsLoaded(true);
-    }
+    loadAllRatings();
   }, [events]);
 
   useEffect(() => {
@@ -187,10 +193,11 @@ export default function EarningsGrid({
       );
     }
 
-    // Apply stable sorting: Strong Buy → Buy → Hold → Sell → Strong Sell → No Rating
-    filtered = filtered.sort((a, b) => {
-      // If ratings are loaded, use the explicit rating order
-      if (ratingsLoaded && ratingsMap.size > 0) {
+    // IMPORTANT: Only sort by ratings if ratings are fully loaded
+    // Otherwise, show loading spinner to user
+    if (ratingsLoaded) {
+      // Apply stable sorting: Strong Buy → Buy → Hold → Sell → Strong Sell → No Rating
+      filtered = filtered.sort((a, b) => {
         const aRatingData = ratingsMap.get(a.ticker) || { hasRating: false, rating: null, priority: 0 };
         const bRatingData = ratingsMap.get(b.ticker) || { hasRating: false, rating: null, priority: 0 };
         
@@ -211,25 +218,32 @@ export default function EarningsGrid({
         if (aPriority === bPriority && aPriority > 0) {
           return a.ticker.localeCompare(b.ticker);
         }
-      }
-      
-      // For same rating level or when ratings not loaded, sort by earnings date (closest first)
-      const aDate = new Date(a.expectedDate);
-      const bDate = new Date(b.expectedDate);
-      return aDate.getTime() - bDate.getTime();
-    });
+        
+        // For same rating level, sort by earnings date (closest first)
+        const aDate = new Date(a.expectedDate);
+        const bDate = new Date(b.expectedDate);
+        return aDate.getTime() - bDate.getTime();
+      });
 
-    // Debug logging for sorting verification (remove in production)
-    if (ratingsLoaded && process.env.NODE_ENV === 'development') {
-      console.log('📊 Sorting Results:', filtered.slice(0, 10).map((event, index) => {
-        const ratingData = ratingsMap.get(event.ticker);
-        return {
-          position: index + 1,
-          ticker: event.ticker,
-          rating: ratingData?.rating || 'No Rating',
-          priority: getRatingPriority(ratingData?.rating || null)
-        };
-      }));
+      // Debug logging for sorting verification
+      if (process.env.NODE_ENV === 'development') {
+        console.log('📊 Final Sorted Results:', filtered.slice(0, 10).map((event, index) => {
+          const ratingData = ratingsMap.get(event.ticker);
+          return {
+            position: index + 1,
+            ticker: event.ticker,
+            rating: ratingData?.rating || 'No Rating',
+            priority: getRatingPriority(ratingData?.rating || null)
+          };
+        }));
+      }
+    } else {
+      // If ratings not loaded yet, just sort by date to show something consistent
+      filtered = filtered.sort((a, b) => {
+        const aDate = new Date(a.expectedDate);
+        const bDate = new Date(b.expectedDate);
+        return aDate.getTime() - bDate.getTime();
+      });
     }
 
     setFilteredEvents(filtered);
@@ -245,6 +259,35 @@ export default function EarningsGrid({
       onAddToWatchlist(ticker, event.companyName, event.market, event.sector);
     }
   };
+
+  // Show loading spinner while ratings are being loaded
+  if (!ratingsLoaded && events.length > 0) {
+    return (
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-8 text-center">
+        <div className="text-blue-500 dark:text-blue-400 mb-4">
+          <svg className="animate-spin mx-auto h-16 w-16" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+        </div>
+        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+          Loading Analyst Ratings
+        </h3>
+        <p className="text-gray-500 dark:text-gray-400">
+          Fetching analyst consensus data for {events.length} companies...
+        </p>
+        <div className="mt-4 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+          <div 
+            className="bg-blue-500 h-2 rounded-full transition-all duration-300" 
+            style={{ width: `${Math.min(100, (ratingsMap.size / events.length) * 100)}%` }}
+          ></div>
+        </div>
+        <p className="text-sm text-gray-400 mt-2">
+          {ratingsMap.size} of {events.length} loaded
+        </p>
+      </div>
+    );
+  }
 
   if (filteredEvents.length === 0) {
     return (
