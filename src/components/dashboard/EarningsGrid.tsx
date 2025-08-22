@@ -23,35 +23,9 @@ export default function EarningsGrid({
   onRemoveFromWatchlist,
 }: EarningsGridProps) {
   const [filteredEvents, setFilteredEvents] = useState<EarningsEvent[]>([]);
-  const [ratingsMap, setRatingsMap] = useState<Map<string, { hasRating: boolean; rating?: string; priority: number }>>(new Map());
+  const [ratingsMap, setRatingsMap] = useState<Map<string, { hasRating: boolean; rating?: string }>>(new Map());
   const [ratingsLoaded, setRatingsLoaded] = useState(false);
 
-  // Helper function to get rating priority for stable sorting
-  // Higher priority = appears first in the list
-  const getRatingPriority = (rating: string | null): number => {
-    if (!rating) return 0; // 'No Rating' - appears last
-    switch (rating) {
-      case 'Strong Buy': return 6;  // Appears first
-      case 'Buy': return 5;         // Second
-      case 'Hold': return 4;        // Third
-      case 'Sell': return 3;        // Fourth
-      case 'Strong Sell': return 2; // Fifth
-      default: return 1;            // Unknown ratings before 'No Rating'
-    }
-  };
-
-  // Helper function to get rating display order for sorting
-  const getRatingDisplayOrder = (rating: string | null): string => {
-    if (!rating) return 'Z_No Rating'; // Ensures it sorts last
-    switch (rating) {
-      case 'Strong Buy': return 'A_Strong Buy';
-      case 'Buy': return 'B_Buy';
-      case 'Hold': return 'C_Hold';
-      case 'Sell': return 'D_Sell';
-      case 'Strong Sell': return 'E_Strong Sell';
-      default: return 'Y_' + rating; // Unknown ratings before 'No Rating'
-    }
-  };
 
   // Load ratings for all events to enable sorting
   useEffect(() => {
@@ -67,41 +41,65 @@ export default function EarningsGrid({
       const tickers = events.map(e => e.ticker);
       console.log('🔍 Loading ratings for tickers:', tickers);
       
-      // Try batch loading first (more efficient for Vercel)
+      // Try batch loading in chunks (batch API has 3 ticker limit)
       try {
-        const batchResponse = await fetch('/api/analyst-insights/batch', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tickers, action: 'get' }),
-        });
+        const batchSize = 3;
+        const newRatingsMap = new Map();
+        let ratingsFound = 0;
+        let batchSuccess = true;
         
-        if (batchResponse.ok) {
-          const batchData = await batchResponse.json();
-          console.log('📊 Batch ratings response received:', batchData.success);
+        for (let i = 0; i < tickers.length; i += batchSize) {
+          const batchTickers = tickers.slice(i, i + batchSize);
           
-          if (batchData.success && batchData.results) {
-            const newRatingsMap = new Map();
-            let ratingsFound = 0;
-            
-            // Process all tickers, ensuring we have an entry for each
-            tickers.forEach(ticker => {
-              const result = batchData.results[ticker];
-              const rating = result?.insights?.consensus?.rating || null;
-              if (rating) ratingsFound++;
-              
-              newRatingsMap.set(ticker, {
-                hasRating: Boolean(rating),
-                rating,
-                priority: getRatingPriority(rating)
-              });
+          try {
+            const batchResponse = await fetch('/api/analyst-insights/batch', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ tickers: batchTickers, action: 'get' }),
             });
             
-            console.log(`✅ Batch loading complete: ${ratingsFound}/${tickers.length} tickers have ratings`);
-            setRatingsMap(newRatingsMap);
-            setRatingsLoaded(true);
-            return; // Skip individual loading if batch worked
+            if (batchResponse.ok) {
+              const batchData = await batchResponse.json();
+              
+              if (batchData.success && batchData.results) {
+                // Process this batch's results
+                batchTickers.forEach(ticker => {
+                  const result = batchData.results[ticker];
+                  const rating = result?.insights?.consensus?.rating || null;
+                  if (rating) ratingsFound++;
+                  
+                  newRatingsMap.set(ticker, {
+                    hasRating: Boolean(rating),
+                    rating
+                  });
+                });
+              } else {
+                batchSuccess = false;
+                break;
+              }
+            } else {
+              batchSuccess = false;
+              break;
+            }
+          } catch (batchError) {
+            console.error(`❌ Error in batch ${i / batchSize + 1}:`, batchError);
+            batchSuccess = false;
+            break;
+          }
+          
+          // Small delay between batches
+          if (i + batchSize < tickers.length) {
+            await new Promise(resolve => setTimeout(resolve, 100));
           }
         }
+        
+        if (batchSuccess) {
+          console.log(`✅ Batch loading complete: ${ratingsFound}/${tickers.length} tickers have ratings`);
+          setRatingsMap(newRatingsMap);
+          setRatingsLoaded(true);
+          return; // Skip individual loading if batch worked
+        }
+        
         console.warn('⚠️ Batch loading failed, falling back to individual calls');
       } catch (error) {
         console.error('❌ Error in batch loading, falling back to individual calls:', error);
@@ -134,8 +132,7 @@ export default function EarningsGrid({
               return { 
                 ticker: event.ticker, 
                 hasRating: Boolean(rating),
-                rating,
-                priority: getRatingPriority(rating)
+                rating
               };
             } else {
               console.warn(`⚠️ API response not OK for ${event.ticker}:`, response.status);
@@ -147,12 +144,12 @@ export default function EarningsGrid({
               console.error(`❌ Error loading rating for ${event.ticker}:`, error);
             }
           }
-          return { ticker: event.ticker, hasRating: false, rating: null, priority: 0 };
+          return { ticker: event.ticker, hasRating: false, rating: null };
         });
 
         const batchRatings = await Promise.all(ratingsPromises);
-        batchRatings.forEach(({ ticker, hasRating, rating, priority }) => {
-          newRatingsMap.set(ticker, { hasRating, rating, priority });
+        batchRatings.forEach(({ ticker, hasRating, rating }) => {
+          newRatingsMap.set(ticker, { hasRating, rating });
         });
         
         // Update the map progressively for better UX
@@ -196,44 +193,31 @@ export default function EarningsGrid({
     // IMPORTANT: Only sort by ratings if ratings are fully loaded
     // Otherwise, show loading spinner to user
     if (ratingsLoaded) {
-      // Apply stable sorting: Strong Buy → Buy → Hold → Sell → Strong Sell → No Rating
+      // Simple sorting: any rating before no rating
       filtered = filtered.sort((a, b) => {
-        const aRatingData = ratingsMap.get(a.ticker) || { hasRating: false, rating: null, priority: 0 };
-        const bRatingData = ratingsMap.get(b.ticker) || { hasRating: false, rating: null, priority: 0 };
+        const aRatingData = ratingsMap.get(a.ticker) || { hasRating: false, rating: null };
+        const bRatingData = ratingsMap.get(b.ticker) || { hasRating: false, rating: null };
         
-        // Get the rating values
-        const aRating = aRatingData.rating || null;
-        const bRating = bRatingData.rating || null;
+        const aHasRating = Boolean(aRatingData.rating);
+        const bHasRating = Boolean(bRatingData.rating);
         
-        // Get priority scores (higher = appears first)
-        const aPriority = getRatingPriority(aRating);
-        const bPriority = getRatingPriority(bRating);
+        // Companies with ratings come first
+        if (aHasRating && !bHasRating) return -1;
+        if (!aHasRating && bHasRating) return 1;
         
-        // Sort by priority (higher priority first)
-        if (aPriority !== bPriority) {
-          return bPriority - aPriority;
-        }
-        
-        // If same rating priority, sort alphabetically by ticker for consistency
-        if (aPriority === bPriority && aPriority > 0) {
-          return a.ticker.localeCompare(b.ticker);
-        }
-        
-        // For same rating level, sort by earnings date (closest first)
-        const aDate = new Date(a.expectedDate);
-        const bDate = new Date(b.expectedDate);
-        return aDate.getTime() - bDate.getTime();
+        // For companies in the same category (both with or both without ratings), sort by ticker
+        return a.ticker.localeCompare(b.ticker);
       });
 
       // Debug logging for sorting verification
       if (process.env.NODE_ENV === 'development') {
-        console.log('📊 Final Sorted Results:', filtered.slice(0, 10).map((event, index) => {
+        console.log('📊 Sorted Results:', filtered.slice(0, 10).map((event, index) => {
           const ratingData = ratingsMap.get(event.ticker);
           return {
             position: index + 1,
             ticker: event.ticker,
             rating: ratingData?.rating || 'No Rating',
-            priority: getRatingPriority(ratingData?.rating || null)
+            hasRating: Boolean(ratingData?.rating)
           };
         }));
       }
@@ -318,14 +302,11 @@ export default function EarningsGrid({
           </h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             {ratingsLoaded ? (
-              <>📊 Sorted: Strong Buy → Buy → Hold → Sell → Strong Sell → No Rating • {Array.from(ratingsMap.values()).filter(r => r.hasRating).length} with ratings</>
+              <>📊 Sorted: Companies with ratings first • {Array.from(ratingsMap.values()).filter(r => r.hasRating).length} with ratings</>
             ) : (
-              <>⏳ Loading ratings for stable sorting...</>
+              <>⏳ Loading ratings...</>
             )}
           </p>
-        </div>
-        <div className="text-sm text-gray-500 dark:text-gray-400">
-          {signals.length} companies with AI insights
         </div>
       </div>
       
