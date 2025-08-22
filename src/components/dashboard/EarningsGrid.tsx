@@ -151,21 +151,38 @@ export default function EarningsGrid({
       );
     }
 
-    // Apply sorting: companies with ratings first, then alphabetical within groups
+    // Apply sorting: Strong Buy → Buy → Hold → Sell → Strong Sell → No Rating
     filtered = filtered.sort((a, b) => {
       if (ratingsLoaded && ratingsMap.size > 0) {
         // Use ratings-based sorting when available
         const aRatingData = ratingsMap.get(a.ticker) || { hasRating: false, rating: null };
         const bRatingData = ratingsMap.get(b.ticker) || { hasRating: false, rating: null };
         
-        const aHasRating = Boolean(aRatingData.rating);
-        const bHasRating = Boolean(bRatingData.rating);
+        const aRating = aRatingData.rating || null;
+        const bRating = bRatingData.rating || null;
         
-        // Companies with ratings come first
-        if (aHasRating && !bHasRating) return -1;
-        if (!aHasRating && bHasRating) return 1;
+        // Get priority scores (higher = appears first)
+        const getRatingPriority = (rating: string | null): number => {
+          if (!rating) return 0; // 'No Rating' - appears last
+          switch (rating) {
+            case 'Strong Buy': return 6;  // Appears first
+            case 'Buy': return 5;         // Second
+            case 'Hold': return 4;        // Third
+            case 'Sell': return 3;        // Fourth
+            case 'Strong Sell': return 2; // Fifth
+            default: return 1;            // Unknown ratings before 'No Rating'
+          }
+        };
         
-        // For companies in the same category, sort by ticker alphabetically
+        const aPriority = getRatingPriority(aRating);
+        const bPriority = getRatingPriority(bRating);
+        
+        // Sort by priority (higher priority first)
+        if (aPriority !== bPriority) {
+          return bPriority - aPriority;
+        }
+        
+        // If same rating, sort alphabetically by ticker
         return a.ticker.localeCompare(b.ticker);
       } else {
         // Fallback: just sort alphabetically by ticker if no ratings
@@ -263,7 +280,7 @@ export default function EarningsGrid({
           </h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             {ratingsLoaded ? (
-              <>📊 Sorted: Companies with ratings first • {Array.from(ratingsMap.values()).filter(r => r.hasRating).length} with ratings</>
+              <>📊 Sorted: Strong Buy → Buy → Hold → Sell → Strong Sell → No Rating • {Array.from(ratingsMap.values()).filter(r => r.hasRating).length} with ratings</>
             ) : (
               <>⏳ Loading ratings...</>
             )}
