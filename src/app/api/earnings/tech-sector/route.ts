@@ -22,18 +22,18 @@ async function cleanupDuplicateTickers() {
     const allRecords = snapshot.docs.map(doc => ({
       id: doc.id,
       data: doc.data(),
-      ticker: doc.data().ticker,
+      ticker: doc.data().ticker as string,
       updatedAt: doc.data().updatedAt?.toDate() || doc.data().createdAt?.toDate() || new Date(0)
     }));
 
     // Group records by ticker
-    const tickerGroups = new Map();
+    const tickerGroups = new Map<string, typeof allRecords>();
     allRecords.forEach(record => {
       if (!record.ticker) return;
       if (!tickerGroups.has(record.ticker)) {
         tickerGroups.set(record.ticker, []);
       }
-      tickerGroups.get(record.ticker).push(record);
+      tickerGroups.get(record.ticker)!.push(record);
     });
 
     const result = {

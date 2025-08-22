@@ -24,6 +24,7 @@ export default function EarningsGrid({
 }: EarningsGridProps) {
   const [filteredEvents, setFilteredEvents] = useState<EarningsEvent[]>([]);
   const [ratingsMap, setRatingsMap] = useState<Map<string, { hasRating: boolean; rating?: string; priority: number }>>(new Map());
+  const [ratingsLoaded, setRatingsLoaded] = useState(false);
 
   // Helper function to get rating priority (higher is better)
   const getRatingPriority = (rating: string | null): number => {
@@ -41,35 +42,67 @@ export default function EarningsGrid({
   // Load ratings for all events to enable sorting
   useEffect(() => {
     const loadAllRatings = async () => {
-      const ratingsPromises = events.map(async (event) => {
-        try {
-          const response = await fetch(`/api/stocks/${event.ticker}/analyst-insights`);
-          if (response.ok) {
-            const data = await response.json();
-            const rating = data.success ? data.insights.consensus?.rating : null;
-            return { 
-              ticker: event.ticker, 
-              hasRating: Boolean(rating),
-              rating,
-              priority: getRatingPriority(rating)
-            };
-          }
-        } catch (error) {
-          console.error(`Error loading rating for ${event.ticker}:`, error);
-        }
-        return { ticker: event.ticker, hasRating: false, rating: null, priority: 0 };
-      });
-
-      const ratings = await Promise.all(ratingsPromises);
+      setRatingsLoaded(false);
+      
+      // Process in smaller batches to avoid overwhelming the API
+      const batchSize = 5;
       const newRatingsMap = new Map();
-      ratings.forEach(({ ticker, hasRating, rating, priority }) => {
-        newRatingsMap.set(ticker, { hasRating, rating, priority });
-      });
-      setRatingsMap(newRatingsMap);
+      
+      for (let i = 0; i < events.length; i += batchSize) {
+        const batch = events.slice(i, i + batchSize);
+        
+        const ratingsPromises = batch.map(async (event) => {
+          try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+            
+            const response = await fetch(`/api/stocks/${event.ticker}/analyst-insights`, {
+              signal: controller.signal
+            });
+            
+            clearTimeout(timeoutId);
+            
+            if (response.ok) {
+              const data = await response.json();
+              const rating = data.success ? data.insights.consensus?.rating : null;
+              return { 
+                ticker: event.ticker, 
+                hasRating: Boolean(rating),
+                rating,
+                priority: getRatingPriority(rating)
+              };
+            }
+          } catch (error) {
+            if (error instanceof Error && error.name === 'AbortError') {
+              console.warn(`Timeout loading rating for ${event.ticker}`);
+            } else {
+              console.error(`Error loading rating for ${event.ticker}:`, error);
+            }
+          }
+          return { ticker: event.ticker, hasRating: false, rating: null, priority: 0 };
+        });
+
+        const batchRatings = await Promise.all(ratingsPromises);
+        batchRatings.forEach(({ ticker, hasRating, rating, priority }) => {
+          newRatingsMap.set(ticker, { hasRating, rating, priority });
+        });
+        
+        // Update the map progressively for better UX
+        setRatingsMap(new Map(newRatingsMap));
+        
+        // Small delay between batches to avoid rate limiting
+        if (i + batchSize < events.length) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+      }
+      
+      setRatingsLoaded(true);
     };
 
     if (events.length > 0) {
       loadAllRatings();
+    } else {
+      setRatingsLoaded(true);
     }
   }, [events]);
 
@@ -95,25 +128,31 @@ export default function EarningsGrid({
       );
     }
 
-    // Sort by ratings - cards with ratings appear first, then by rating quality
+    // Always apply sorting - use ratings if available, fallback to date-based sorting
     filtered = filtered.sort((a, b) => {
-      const aRatingData = ratingsMap.get(a.ticker) || { hasRating: false, priority: 0 };
-      const bRatingData = ratingsMap.get(b.ticker) || { hasRating: false, priority: 0 };
-      
-      // First, sort by whether they have ratings at all
-      if (aRatingData.hasRating && !bRatingData.hasRating) return -1;
-      if (!aRatingData.hasRating && bRatingData.hasRating) return 1;
-      
-      // If both have ratings, sort by rating quality (Strong Buy first, etc.)
-      if (aRatingData.hasRating && bRatingData.hasRating) {
-        return bRatingData.priority - aRatingData.priority;
+      // If ratings are loaded, use rating-based sorting
+      if (ratingsLoaded && ratingsMap.size > 0) {
+        const aRatingData = ratingsMap.get(a.ticker) || { hasRating: false, priority: 0 };
+        const bRatingData = ratingsMap.get(b.ticker) || { hasRating: false, priority: 0 };
+        
+        // First, sort by whether they have ratings at all
+        if (aRatingData.hasRating && !bRatingData.hasRating) return -1;
+        if (!aRatingData.hasRating && bRatingData.hasRating) return 1;
+        
+        // If both have ratings, sort by rating quality (Strong Buy first, etc.)
+        if (aRatingData.hasRating && bRatingData.hasRating) {
+          return bRatingData.priority - aRatingData.priority;
+        }
       }
       
-      return 0; // Keep original order for same rating status
+      // Fallback: sort by earnings date (closest first)
+      const aDate = new Date(a.expectedDate);
+      const bDate = new Date(b.expectedDate);
+      return aDate.getTime() - bDate.getTime();
     });
 
     setFilteredEvents(filtered);
-  }, [events, filters, ratingsMap]);
+  }, [events, filters, ratingsMap, ratingsLoaded]);
 
   const getSignalForTicker = (ticker: string): SentimentSignal | undefined => {
     return signals.find(signal => signal.ticker === ticker);
@@ -154,7 +193,11 @@ export default function EarningsGrid({
             Upcoming Earnings ({filteredEvents.length})
           </h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            📊 Sorted by analyst ratings • {Array.from(ratingsMap.values()).filter(r => r.hasRating).length} with ratings
+            {ratingsLoaded ? (
+              <>📊 Sorted by analyst ratings • {Array.from(ratingsMap.values()).filter(r => r.hasRating).length} with ratings</>
+            ) : (
+              <>⏳ Loading ratings for sorting...</>
+            )}
           </p>
         </div>
         <div className="text-sm text-gray-500 dark:text-gray-400">
