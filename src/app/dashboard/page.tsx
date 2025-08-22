@@ -159,7 +159,7 @@ export default function DashboardPage() {
                   Earnings Dashboard
                 </h1>
                 <p className="mt-2 text-sm md:text-base text-gray-600 dark:text-gray-400">
-                  S&P 500 Technology Sector - Intelligent analysis for companies with upcoming earnings
+                  S&P 500 Technology Sector - Analyst consensus and earnings tracking
                 </p>
               </div>
               <div className="flex items-center flex-shrink-0">
@@ -178,7 +178,7 @@ export default function DashboardPage() {
               Analyst Insights Summary
             </h2>
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 max-w-4xl mx-auto">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 max-w-4xl mx-auto">
                 <div className="text-center">
                   <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">
                     {events.length}
@@ -195,17 +195,9 @@ export default function DashboardPage() {
                     In Your Watchlist
                   </div>
                 </div>
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-purple-600 dark:text-purple-400">
-                    {signals.length}
-                  </div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">
-                    With AI Insights
-                  </div>
-                </div>
               </div>
               <div className="mt-4 text-center text-sm text-gray-500 dark:text-gray-400">
-                Click on any stock below to view detailed analyst insights and recommendations
+                S&P 500 technology companies with analyst consensus ratings
               </div>
             </div>
           </div>

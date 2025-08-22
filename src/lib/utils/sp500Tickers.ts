@@ -229,6 +229,14 @@ const SP500_COMPANIES: Partial<SP500Company>[] = [
   // Communication Services
   { ticker: 'VZ', companyName: 'Verizon Communications Inc.', sector: 'Communication Services', industry: 'Telecommunications' },
   { ticker: 'T', companyName: 'AT&T Inc.', sector: 'Communication Services', industry: 'Telecommunications' },
+  { ticker: 'META', companyName: 'Meta Platforms Inc.', sector: 'Communication Services', industry: 'Social Media' },
+  { ticker: 'GOOGL', companyName: 'Alphabet Inc.', sector: 'Communication Services', industry: 'Internet & Search' },
+  { ticker: 'NFLX', companyName: 'Netflix Inc.', sector: 'Communication Services', industry: 'Streaming' },
+  
+  // Additional Technology Companies
+  { ticker: 'NIO', companyName: 'NIO Inc.', sector: 'Technology', industry: 'Electric Vehicles' },
+  { ticker: 'AMZN', companyName: 'Amazon.com Inc.', sector: 'Technology', industry: 'E-commerce & Cloud' },
+  { ticker: 'AAPL', companyName: 'Apple Inc.', sector: 'Technology', industry: 'Consumer Electronics' },
   
   // Utilities
   { ticker: 'NEE', companyName: 'NextEra Energy Inc.', sector: 'Utilities', industry: 'Electric Utilities' },
@@ -335,7 +343,7 @@ export class SP500EarningsManager {
       console.log(`Found ${techCompanies.length} technology companies in S&P 500`);
 
       const today = new Date();
-      const thirtyDaysFromNow = new Date(today.getTime() + (30 * 24 * 60 * 60 * 1000));
+      const sixtyDaysFromNow = new Date(today.getTime() + (60 * 24 * 60 * 60 * 1000));
       
       const processedCompanies = [];
       const companiesForAnalysis = [];
@@ -355,8 +363,8 @@ export class SP500EarningsManager {
             const earningsDate = new Date(earningsInfo.nextEarningsDate);
             daysUntilEarnings = Math.floor((earningsDate.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
             
-            // Company needs analysis if earnings are within next 30 days
-            if (earningsDate >= today && earningsDate <= thirtyDaysFromNow) {
+            // Company needs analysis if earnings are within next 60 days
+            if (earningsDate >= today && earningsDate <= sixtyDaysFromNow) {
               needsAnalysis = true;
               companiesForAnalysis.push(company.ticker);
             }
@@ -412,7 +420,7 @@ export class SP500EarningsManager {
 
       const summary = {
         totalTechCompanies: processedCompanies.length,
-        companiesWithUpcomingEarnings: processedCompanies.filter(c => c.daysUntilEarnings !== null && c.daysUntilEarnings >= 0 && c.daysUntilEarnings <= 30).length,
+        companiesWithUpcomingEarnings: processedCompanies.filter(c => c.daysUntilEarnings !== null && c.daysUntilEarnings >= 0 && c.daysUntilEarnings <= 60).length,
         companiesNeedingAnalysis: companiesForAnalysis.length
       };
 

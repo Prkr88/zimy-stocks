@@ -8,7 +8,6 @@ import StockAnalysisButton from './StockAnalysisButton';
 
 interface EarningsCardProps {
   event: EarningsEvent;
-  sentiment?: SentimentSignal;
   isWatchlisted?: boolean;
   onAddToWatchlist?: (ticker: string) => void;
   onRemoveFromWatchlist?: (ticker: string) => void;
@@ -16,25 +15,28 @@ interface EarningsCardProps {
 
 export default function EarningsCard({
   event,
-  sentiment,
   isWatchlisted = false,
   onAddToWatchlist,
   onRemoveFromWatchlist,
 }: EarningsCardProps) {
   const [showAnalystInsights, setShowAnalystInsights] = useState(false);
   const [analystRating, setAnalystRating] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true); // Start as true to prevent hydration mismatch
+  const [loading, setLoading] = useState(true);
   const [mounted, setMounted] = useState(false);
 
   const loadAnalystRating = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/stocks/${event.ticker}/analyst-insights`);
+      const response = await fetch(`/api/analyst-insights/batch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tickers: [event.ticker], action: 'get' }),
+      });
       
       if (response.ok) {
         const data = await response.json();
-        if (data.success && data.insights.consensus?.rating) {
-          setAnalystRating(data.insights.consensus.rating);
+        if (data.success && data.results?.[event.ticker]?.insights?.consensus?.rating) {
+          setAnalystRating(data.results[event.ticker].insights.consensus.rating);
         }
       }
     } catch (error) {
@@ -134,7 +136,6 @@ export default function EarningsCard({
             ticker={event.ticker} 
             onAnalysisComplete={() => {
               loadAnalystRating();
-              // You can add any additional refresh logic here
             }} 
           />
           <button
@@ -178,23 +179,6 @@ export default function EarningsCard({
           </p>
         </div>
       </div>
-
-      {sentiment && (
-        <div className="border-t border-gray-200 dark:border-gray-700 pt-4 flex-shrink-0">
-          <p className="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">
-            AI Insight
-          </p>
-          <p className="text-sm text-gray-700 dark:text-gray-300 line-clamp-3">{sentiment.reasoning}</p>
-          <div className="flex items-center justify-between mt-2">
-            <span className="text-xs text-gray-500 dark:text-gray-400">
-              Confidence: {Math.round(sentiment.confidence * 100)}%
-            </span>
-            <span className="text-xs text-gray-500 dark:text-gray-400">
-              Score: {sentiment.sentimentScore.toFixed(2)}
-            </span>
-          </div>
-        </div>
-      )}
 
       {event.analystEstimate && (
         <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4 flex-shrink-0">

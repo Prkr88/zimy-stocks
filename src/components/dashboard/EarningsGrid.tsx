@@ -26,8 +26,7 @@ export default function EarningsGrid({
   const [ratingsMap, setRatingsMap] = useState<Map<string, { hasRating: boolean; rating?: string }>>(new Map());
   const [ratingsLoaded, setRatingsLoaded] = useState(false);
 
-
-  // Load ratings for all events to enable sorting
+  // Load ratings for all events to enable sorting (progressive loading)
   useEffect(() => {
     const loadAllRatings = async () => {
       if (events.length === 0) {
@@ -75,6 +74,9 @@ export default function EarningsGrid({
                     rating
                   });
                 });
+                
+                // Update UI immediately after each batch (progressive loading)
+                setRatingsMap(new Map(newRatingsMap));
                 console.log(`📊 Batch ${i / batchSize + 1} processed: ${batchTickers.length} tickers`);
               } else {
                 console.error(`❌ Batch ${i / batchSize + 1} invalid response:`, batchData);
@@ -103,21 +105,20 @@ export default function EarningsGrid({
           console.log(`✅ Batch loading complete: ${ratingsFound}/${tickers.length} tickers have ratings`);
           setRatingsMap(newRatingsMap);
           setRatingsLoaded(true);
-          return; // Skip individual loading if batch worked
+          return;
         }
         
-        console.warn('⚠️ Batch loading failed, falling back to individual calls');
+        console.warn('⚠️ Batch loading failed');
       } catch (error) {
-        console.error('❌ Error in batch loading, falling back to individual calls:', error);
+        console.error('❌ Error in batch loading:', error);
       }
       
       // If batch loading failed completely, still set ratingsLoaded to true
-      // so the UI doesn't stay in loading state forever and show alphabetical sort
       if (newRatingsMap.size === 0) {
         console.log('📝 Batch loading completely failed, setting empty ratings map');
         setRatingsMap(new Map());
         setRatingsLoaded(true);
-        return; // Skip individual loading and just show alphabetical sort
+        return;
       }
       
       // If we have partial results from batch loading, use them and mark as loaded
@@ -152,9 +153,10 @@ export default function EarningsGrid({
     }
 
     // Apply sorting: Strong Buy → Buy → Hold → Sell → Strong Sell → No Rating
+    // Sort progressively as ratings load, don't wait for all to be loaded
     filtered = filtered.sort((a, b) => {
-      if (ratingsLoaded && ratingsMap.size > 0) {
-        // Use ratings-based sorting when available
+      if (ratingsMap.size > 0) {
+        // Use ratings-based sorting with available data
         const aRatingData = ratingsMap.get(a.ticker) || { hasRating: false, rating: null };
         const bRatingData = ratingsMap.get(b.ticker) || { hasRating: false, rating: null };
         
@@ -185,35 +187,13 @@ export default function EarningsGrid({
         // If same rating, sort alphabetically by ticker
         return a.ticker.localeCompare(b.ticker);
       } else {
-        // Fallback: just sort alphabetically by ticker if no ratings
+        // Initially sort alphabetically by ticker until ratings arrive
         return a.ticker.localeCompare(b.ticker);
       }
     });
 
-    // Debug logging for sorting verification
-    if (process.env.NODE_ENV === 'development') {
-      console.log('📊 Final Sorting Results:', {
-        ratingsLoaded,
-        ratingsMapSize: ratingsMap.size,
-        totalItems: filtered.length,
-        firstFew: filtered.slice(0, 5).map((event, index) => {
-          const ratingData = ratingsMap.get(event.ticker);
-          return {
-            position: index + 1,
-            ticker: event.ticker,
-            rating: ratingData?.rating || 'No Rating',
-            hasRating: Boolean(ratingData?.rating)
-          };
-        })
-      });
-    }
-
     setFilteredEvents(filtered);
   }, [events, filters, ratingsMap, ratingsLoaded]);
-
-  const getSignalForTicker = (ticker: string): SentimentSignal | undefined => {
-    return signals.find(signal => signal.ticker === ticker);
-  };
 
   const handleAddToWatchlist = (ticker: string) => {
     const event = events.find(e => e.ticker === ticker);
@@ -222,34 +202,7 @@ export default function EarningsGrid({
     }
   };
 
-  // Show loading spinner while ratings are being loaded
-  if (!ratingsLoaded && events.length > 0) {
-    return (
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-8 text-center">
-        <div className="text-blue-500 dark:text-blue-400 mb-4">
-          <svg className="animate-spin mx-auto h-16 w-16" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-          </svg>
-        </div>
-        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-          Loading Analyst Ratings
-        </h3>
-        <p className="text-gray-500 dark:text-gray-400">
-          Fetching analyst consensus data for {events.length} companies...
-        </p>
-        <div className="mt-4 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-          <div 
-            className="bg-blue-500 h-2 rounded-full transition-all duration-300" 
-            style={{ width: `${Math.min(100, (ratingsMap.size / events.length) * 100)}%` }}
-          ></div>
-        </div>
-        <p className="text-sm text-gray-400 mt-2">
-          {ratingsMap.size} of {events.length} loaded
-        </p>
-      </div>
-    );
-  }
+  // Progressive loading: show components immediately, no blocking spinner
 
   if (filteredEvents.length === 0) {
     return (
@@ -279,10 +232,10 @@ export default function EarningsGrid({
             Upcoming Earnings ({filteredEvents.length})
           </h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            {ratingsLoaded ? (
-              <>📊 Sorted: Strong Buy → Buy → Hold → Sell → Strong Sell → No Rating • {Array.from(ratingsMap.values()).filter(r => r.hasRating).length} with ratings</>
+            {ratingsMap.size > 0 ? (
+              <>📊 Sorted: Strong Buy → Buy → Hold → Sell → Strong Sell → No Rating • {Array.from(ratingsMap.values()).filter(r => r.hasRating).length}/{ratingsMap.size} with ratings{!ratingsLoaded && ratingsMap.size < events.length ? ` (${ratingsMap.size}/${events.length} loaded)` : ''}</>
             ) : (
-              <>⏳ Loading ratings...</>
+              <>⏳ Loading analyst ratings...</>
             )}
           </p>
         </div>
@@ -293,7 +246,6 @@ export default function EarningsGrid({
           <EarningsCard
             key={event.id}
             event={event}
-            sentiment={getSignalForTicker(event.ticker)}
             isWatchlisted={watchlistedTickers.includes(event.ticker)}
             onAddToWatchlist={handleAddToWatchlist}
             onRemoveFromWatchlist={onRemoveFromWatchlist}

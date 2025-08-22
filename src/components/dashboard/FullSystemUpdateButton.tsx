@@ -19,65 +19,42 @@ export default function FullSystemUpdateButton({
     setMessage('');
 
     try {
-      // Step 1: Update earnings calendar with S&P 500 tech sector intelligent filtering
-      setCurrentStep('Fetching S&P 500 tech sector companies...');
-      const techSectorResponse = await fetch('/api/earnings/tech-sector', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          action: 'update-tech-sector'
-        })
-      });
-
-      if (!techSectorResponse.ok) {
-        throw new Error('Failed to update tech sector companies');
-      }
-
-      const techSectorData = await techSectorResponse.json();
-      console.log('Tech sector update completed:', techSectorData);
-
-      // Step 2: Extract companies that need analysis (upcoming earnings)
-      setCurrentStep('Identifying companies for analysis...');
-      const tickers = techSectorData.result.companiesForAnalysis;
-
-      if (tickers.length === 0) {
-        // No companies need analysis - this is a valid scenario
-        setMessage(`✅ Tech sector update completed! Found ${techSectorData.result.summary.totalTechCompanies} tech companies, ${techSectorData.result.summary.companiesWithUpcomingEarnings} with upcoming earnings in next 30 days. No companies currently need analysis (all earnings are outside the 30-day window).`);
-        setLastUpdate(new Date());
-        
-        if (onUpdateComplete) {
-          onUpdateComplete();
-        }
-        return;
-      }
-
-      // Step 3: Update analyst insights for current stocks
-      setCurrentStep(`Analyzing ${tickers.length} stocks: ${tickers.join(', ')}...`);
-      const insightsResponse = await fetch('/api/analyst-insights/batch', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          tickers,
-          action: 'refresh',
-          updateConsensus: true,
-          updateEarnings: true,
-          updateSentiment: true,
-          maxConcurrent: 2
-        })
-      });
-
-      if (!insightsResponse.ok) {
-        throw new Error('Failed to update analyst insights');
-      }
-
-      const insightsData = await insightsResponse.json();
+      setCurrentStep('Updating S&P 500 tech sector companies (may take a few minutes)...');
       
-      setMessage(`✅ Tech sector update completed! Found ${techSectorData.result.summary.totalTechCompanies} tech companies, ${techSectorData.result.summary.companiesWithUpcomingEarnings} with upcoming earnings. Analyzed ${insightsData.results.summary.successful}/${insightsData.results.summary.total} companies with upcoming earnings successfully.`);
-      setLastUpdate(new Date());
+      // Use a longer timeout for tech sector update (10 minutes)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 600000); // 10 minutes
+      
+      try {
+        const techSectorResponse = await fetch('/api/earnings/tech-sector', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            action: 'update-tech-sector'
+          }),
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+        
+        if (!techSectorResponse.ok) {
+          throw new Error('Failed to update tech sector companies');
+        }
+
+        const techSectorData = await techSectorResponse.json();
+        console.log('Tech sector update completed:', techSectorData);
+
+        setMessage(`✅ Tech sector update completed! Found ${techSectorData.result.summary.totalTechCompanies} tech companies, ${techSectorData.result.summary.companiesWithUpcomingEarnings} with upcoming earnings in next 60 days.`);
+        setLastUpdate(new Date());
+      } catch (fetchError: any) {
+        clearTimeout(timeoutId);
+        if (fetchError.name === 'AbortError') {
+          throw new Error('Update timed out - this can happen with large datasets. Try refreshing individual companies instead.');
+        }
+        throw fetchError;
+      }
       
       if (onUpdateComplete) {
         onUpdateComplete();
@@ -107,7 +84,7 @@ export default function FullSystemUpdateButton({
         ) : (
           <>
             <span className="mr-2">🏗️</span>
-            Tech Sector Analysis
+            Update Database
           </>
         )}
       </button>

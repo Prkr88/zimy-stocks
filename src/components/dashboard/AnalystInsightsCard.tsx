@@ -1,391 +1,368 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-
-interface AnalystConsensus {
-  eps_estimate: number | null;
-  revenue_estimate: number | null;
-  avg_price_target: number | null;
-  rating: 'Strong Buy' | 'Buy' | 'Hold' | 'Sell' | 'Strong Sell' | null;
-  rating_distribution: {
-    buy: number;
-    hold: number;
-    sell: number;
-  };
-}
-
-interface EarningsSummary {
-  revenue_expected: number | null;
-  revenue_actual: number | null;
-  revenue_result: 'Beat' | 'Miss' | 'Inline' | 'Unknown';
-  eps_expected: number | null;
-  eps_actual: number | null;
-  eps_result: 'Beat' | 'Miss' | 'Inline' | 'Unknown';
-  guidance: string | null;
-  analyst_reaction: string | null;
-  market_reaction: string | null;
-}
-
-interface SentimentAnalysis {
-  sentiment_score: 'Bullish' | 'Neutral' | 'Bearish';
-  confidence: number;
-  top_quotes: string[];
-  analyst_rating_sentiment: 'Positive' | 'Neutral' | 'Negative' | 'Unknown';
-  news_sentiment: 'Positive' | 'Neutral' | 'Negative' | 'Unknown';
-  social_sentiment: 'Positive' | 'Neutral' | 'Negative' | 'Unknown';
-}
+import { useState, useEffect } from 'react';
 
 interface AnalystInsightsCardProps {
   ticker: string;
-  companyName?: string;
+  companyName: string;
+}
+
+interface ConsensusData {
+  rating?: string;
+  rating_distribution?: {
+    buy?: number;
+    hold?: number;
+    sell?: number;
+  };
+  avg_price_target?: number;
+  eps_estimate?: number;
+  revenue_estimate?: number;
+  confidence?: number;
+  dataSource?: string;
+  updatedAt?: any;
+  guidance?: string;
+  analyst_reaction?: string;
+  sentiment_analysis?: string;
+  credibility_score?: number;
+  weighted_rating?: string;
 }
 
 export default function AnalystInsightsCard({ ticker, companyName }: AnalystInsightsCardProps) {
-  const [insights, setInsights] = useState<{
-    consensus: AnalystConsensus | null;
-    earnings: EarningsSummary | null;
-    sentiment: SentimentAnalysis | null;
-  }>({
-    consensus: null,
-    earnings: null,
-    sentiment: null
-  });
-  const [loading, setLoading] = useState(true); // Start as true to prevent hydration mismatch
-  const [error, setError] = useState('');
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [mounted, setMounted] = useState(false);
+  const [consensus, setConsensus] = useState<ConsensusData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const loadInsights = useCallback(async () => {
+  const loadAnalystInsights = async () => {
     try {
       setLoading(true);
-      setError('');
+      setError(null);
       
-      const response = await fetch(`/api/stocks/${ticker}/analyst-insights`);
+      const response = await fetch('/api/analyst-insights/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tickers: [ticker], action: 'get' }),
+      });
       
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      
-      if (data.success) {
-        setInsights({
-          consensus: data.insights.consensus,
-          earnings: data.insights.earnings,
-          sentiment: data.insights.sentiment
-        });
-        setLastUpdated(new Date());
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.results?.[ticker]?.insights?.consensus) {
+          setConsensus(data.results[ticker].insights.consensus);
+        } else {
+          setConsensus(null);
+        }
       } else {
         setError('Failed to load analyst insights');
       }
-    } catch (error) {
-      console.error('Error loading analyst insights:', error);
-      setError(error instanceof Error ? error.message : 'Unknown error');
+    } catch (err) {
+      console.error('Error loading analyst insights:', err);
+      setError('Error loading analyst insights');
     } finally {
       setLoading(false);
     }
-  }, [ticker]);
+  };
 
   useEffect(() => {
-    setMounted(true);
-    loadInsights();
-  }, [ticker, loadInsights]);
+    loadAnalystInsights();
+  }, [ticker]);
 
-  const refreshInsights = async () => {
-    try {
-      setLoading(true);
-      setError('');
-      
-      const response = await fetch(`/api/stocks/${ticker}/analyst-insights`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ action: 'refresh' })
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      
-      if (data.success) {
-        // Reload the data after refresh
-        await loadInsights();
-      } else {
-        setError('Failed to refresh analyst insights');
-      }
-    } catch (error) {
-      console.error('Error refreshing insights:', error);
-      setError(error instanceof Error ? error.message : 'Unknown error');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const formatCurrency = (value: number | null, isRevenue = false) => {
-    if (value === null) return 'N/A';
-    
+  const formatCurrency = (value: number | undefined, isRevenue = false) => {
+    if (!value) return 'N/A';
     if (isRevenue) {
-      // Format revenue in billions/millions
-      if (value >= 1e9) {
-        return `$${(value / 1e9).toFixed(1)}B`;
-      } else if (value >= 1e6) {
-        return `$${(value / 1e6).toFixed(1)}M`;
-      }
-      return `$${value.toLocaleString()}`;
+      return `$${(value / 1000000000).toFixed(1)}B`;
+    }
+    return `$${value.toFixed(2)}`;
+  };
+
+  const formatLastUpdated = (updatedAt: any) => {
+    if (!updatedAt) return 'Never';
+    
+    let date: Date;
+    if (updatedAt._seconds) {
+      // Firestore timestamp
+      date = new Date(updatedAt._seconds * 1000);
+    } else if (updatedAt.toDate) {
+      // Firestore timestamp object
+      date = updatedAt.toDate();
     } else {
-      // Format EPS/price target
-      return `$${value.toFixed(2)}`;
+      date = new Date(updatedAt);
     }
-  };
-
-  const getRatingColor = (rating: string | null) => {
-    switch (rating) {
-      case 'Strong Buy':
-        return 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20';
-      case 'Buy':
-        return 'text-green-500 dark:text-green-400 bg-green-50 dark:bg-green-900/20';
-      case 'Hold':
-        return 'text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20';
-      case 'Sell':
-        return 'text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-900/20';
-      case 'Strong Sell':
-        return 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20';
-      default:
-        return 'text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/20';
-    }
-  };
-
-  const getResultColor = (result: string) => {
-    switch (result) {
-      case 'Beat':
-        return 'text-green-600 dark:text-green-400';
-      case 'Miss':
-        return 'text-red-600 dark:text-red-400';
-      case 'Inline':
-        return 'text-blue-600 dark:text-blue-400';
-      default:
-        return 'text-gray-600 dark:text-gray-400';
-    }
-  };
-
-  const getSentimentColor = (sentiment: string) => {
-    switch (sentiment) {
-      case 'Bullish':
-      case 'Positive':
-        return 'text-green-600 dark:text-green-400';
-      case 'Bearish':
-      case 'Negative':
-        return 'text-red-600 dark:text-red-400';
-      case 'Neutral':
-        return 'text-blue-600 dark:text-blue-400';
-      default:
-        return 'text-gray-600 dark:text-gray-400';
-    }
+    
+    return date.toLocaleTimeString();
   };
 
   if (loading) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Analyst Insights - {ticker}
-          </h3>
-          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+      <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
+        <div className="animate-pulse">
+          <div className="h-4 bg-gray-300 dark:bg-gray-600 rounded mb-3"></div>
+          <div className="space-y-2">
+            <div className="h-3 bg-gray-300 dark:bg-gray-600 rounded w-3/4"></div>
+            <div className="h-3 bg-gray-300 dark:bg-gray-600 rounded w-1/2"></div>
+          </div>
         </div>
-        <div className="text-gray-600 dark:text-gray-400">Loading analyst insights...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-4">
+        <p className="text-red-700 dark:text-red-400 text-sm">{error}</p>
+        <button 
+          onClick={loadAnalystInsights}
+          className="mt-2 text-red-600 dark:text-red-400 text-xs hover:underline"
+        >
+          Try again
+        </button>
       </div>
     );
   }
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Analyst Insights - {ticker}
-          </h3>
-          {companyName && (
-            <p className="text-sm text-gray-600 dark:text-gray-400">{companyName}</p>
-          )}
-        </div>
+    <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 space-y-4">
+      <div className="flex items-center justify-between">
+        <h4 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center">
+          <span className="text-lg mr-2">📊</span>
+          Analyst Insights
+        </h4>
         <button
-          onClick={refreshInsights}
+          onClick={loadAnalystInsights}
           disabled={loading}
-          className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600 dark:hover:bg-gray-600"
+          className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 disabled:opacity-50"
+          title="Refresh insights"
         >
-          <span className="mr-1">🔄</span>
-          Refresh
+          <span className={`text-sm ${loading ? 'animate-spin' : ''}`}>🔄</span>
+          <span className="ml-1 text-xs">Refresh</span>
         </button>
       </div>
 
-      {error && (
-        <div className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded dark:bg-red-900 dark:border-red-700 dark:text-red-100">
-          {error}
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Analyst Consensus */}
-        <div className="space-y-4">
-          <h4 className="text-md font-medium text-gray-900 dark:text-white">Consensus Estimates</h4>
-          
-          {insights.consensus ? (
-            <div className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-sm text-gray-600 dark:text-gray-400">EPS Estimate:</span>
-                <span className="text-sm font-medium">{formatCurrency(insights.consensus.eps_estimate)}</span>
-              </div>
-              
-              <div className="flex justify-between">
-                <span className="text-sm text-gray-600 dark:text-gray-400">Revenue Estimate:</span>
-                <span className="text-sm font-medium">{formatCurrency(insights.consensus.revenue_estimate, true)}</span>
-              </div>
-              
-              <div className="flex justify-between">
-                <span className="text-sm text-gray-600 dark:text-gray-400">Price Target:</span>
-                <span className="text-sm font-medium">{formatCurrency(insights.consensus.avg_price_target)}</span>
-              </div>
-              
-              {insights.consensus.rating && (
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600 dark:text-gray-400">Rating:</span>
-                  <span className={`text-sm font-medium px-2 py-1 rounded-full ${getRatingColor(insights.consensus.rating)}`}>
-                    {insights.consensus.rating}
-                  </span>
-                </div>
-              )}
-              
-              {insights.consensus.rating_distribution && (
-                <div className="mt-3">
-                  <span className="text-sm text-gray-600 dark:text-gray-400">Analyst Distribution:</span>
-                  <div className="mt-1 text-xs space-y-1">
-                    <div className="flex justify-between">
-                      <span>Buy: {insights.consensus.rating_distribution.buy}</span>
-                      <span>Hold: {insights.consensus.rating_distribution.hold}</span>
-                      <span>Sell: {insights.consensus.rating_distribution.sell}</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="text-sm text-gray-500 dark:text-gray-400">No consensus data available</div>
-          )}
-        </div>
-
-        {/* Earnings Results */}
-        <div className="space-y-4">
-          <h4 className="text-md font-medium text-gray-900 dark:text-white">Earnings vs Estimates</h4>
-          
-          {insights.earnings ? (
-            <div className="space-y-3">
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600 dark:text-gray-400">EPS:</span>
-                  <div className="text-right">
-                    <div className="text-sm">
-                      {formatCurrency(insights.earnings.eps_actual)} vs {formatCurrency(insights.earnings.eps_expected)}
-                    </div>
-                    <div className={`text-xs font-medium ${getResultColor(insights.earnings.eps_result)}`}>
-                      {insights.earnings.eps_result}
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="flex justify-between">
-                  <span className="text-sm text-gray-600 dark:text-gray-400">Revenue:</span>
-                  <div className="text-right">
-                    <div className="text-sm">
-                      {formatCurrency(insights.earnings.revenue_actual, true)} vs {formatCurrency(insights.earnings.revenue_expected, true)}
-                    </div>
-                    <div className={`text-xs font-medium ${getResultColor(insights.earnings.revenue_result)}`}>
-                      {insights.earnings.revenue_result}
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              {insights.earnings.guidance && (
-                <div className="mt-3 p-2 bg-gray-50 dark:bg-gray-700 rounded text-xs">
-                  <strong>Guidance:</strong> {insights.earnings.guidance}
-                </div>
-              )}
-              
-              {insights.earnings.analyst_reaction && (
-                <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded text-xs">
-                  <strong>Analyst Reaction:</strong> {insights.earnings.analyst_reaction}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="text-sm text-gray-500 dark:text-gray-400">No earnings comparison available</div>
-          )}
-        </div>
-
-        {/* Sentiment Analysis */}
-        <div className="space-y-4">
-          <h4 className="text-md font-medium text-gray-900 dark:text-white">Sentiment Analysis</h4>
-          
-          {insights.sentiment ? (
-            <div className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-sm text-gray-600 dark:text-gray-400">Overall:</span>
-                <span className={`text-sm font-medium ${getSentimentColor(insights.sentiment.sentiment_score)}`}>
-                  {insights.sentiment.sentiment_score}
-                </span>
-              </div>
-              
-              <div className="flex justify-between">
-                <span className="text-sm text-gray-600 dark:text-gray-400">Confidence:</span>
-                <span className="text-sm font-medium">{(insights.sentiment.confidence * 100).toFixed(0)}%</span>
-              </div>
-              
-              <div className="grid grid-cols-3 gap-2 text-xs">
-                <div className="text-center">
-                  <div className="text-gray-600 dark:text-gray-400">Analyst</div>
-                  <div className={getSentimentColor(insights.sentiment.analyst_rating_sentiment)}>
-                    {insights.sentiment.analyst_rating_sentiment}
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="text-gray-600 dark:text-gray-400">News</div>
-                  <div className={getSentimentColor(insights.sentiment.news_sentiment)}>
-                    {insights.sentiment.news_sentiment}
-                  </div>
-                </div>
-                <div className="text-center">
-                  <div className="text-gray-600 dark:text-gray-400">Social</div>
-                  <div className={getSentimentColor(insights.sentiment.social_sentiment)}>
-                    {insights.sentiment.social_sentiment}
-                  </div>
-                </div>
-              </div>
-              
-              {insights.sentiment.top_quotes && insights.sentiment.top_quotes.length > 0 && (
-                <div className="mt-3">
-                  <span className="text-sm text-gray-600 dark:text-gray-400">Key Quotes:</span>
-                  <div className="mt-1 space-y-1">
-                    {insights.sentiment.top_quotes.slice(0, 2).map((quote, index) => (
-                      <div key={index} className="text-xs italic text-gray-700 dark:text-gray-300 p-2 bg-gray-50 dark:bg-gray-700 rounded">
-                        &ldquo;{quote}&rdquo;
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="text-sm text-gray-500 dark:text-gray-400">No sentiment analysis available</div>
-          )}
-        </div>
+      <div className="text-xs text-gray-600 dark:text-gray-400 mb-3">
+        Analyst Insights - {ticker}<br />
+        {companyName}
       </div>
 
-      {lastUpdated && mounted && (
-        <div className="mt-4 text-xs text-gray-500 dark:text-gray-400 text-center">
-          Last updated: {lastUpdated.toLocaleTimeString()}
+      {consensus ? (
+        <div className="space-y-4">
+          {/* Overall Rating Summary */}
+          {consensus.rating && (
+            <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3">
+              <div className="flex items-center justify-between mb-2">
+                <h5 className="text-xs font-semibold text-gray-700 dark:text-gray-300">
+                  Overall Consensus
+                </h5>
+                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                  consensus.rating === 'Strong Buy' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+                  consensus.rating === 'Buy' ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' :
+                  consensus.rating === 'Hold' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
+                  consensus.rating === 'Sell' ? 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300' :
+                  consensus.rating === 'Strong Sell' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
+                  'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+                }`}>
+                  {consensus.rating === 'Strong Buy' ? '🚀' :
+                   consensus.rating === 'Buy' ? '📈' :
+                   consensus.rating === 'Hold' ? '⚖️' :
+                   consensus.rating === 'Sell' ? '📉' :
+                   consensus.rating === 'Strong Sell' ? '⛔' : '📊'} {consensus.rating}
+                </span>
+              </div>
+              <p className="text-xs text-gray-600 dark:text-gray-400">
+                Based on analysis from {consensus.rating_distribution ? 
+                  (consensus.rating_distribution.buy || 0) + (consensus.rating_distribution.hold || 0) + (consensus.rating_distribution.sell || 0)
+                  : 'multiple'} analyst{consensus.rating_distribution && 
+                  ((consensus.rating_distribution.buy || 0) + (consensus.rating_distribution.hold || 0) + (consensus.rating_distribution.sell || 0)) !== 1 ? 's' : ''}
+              </p>
+            </div>
+          )}
+
+          {/* Consensus Estimates */}
+          <div>
+            <h5 className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+              Consensus Estimates
+            </h5>
+            <div className="grid grid-cols-1 gap-2 text-xs">
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">EPS Estimate:</span>
+                <span className="font-medium text-gray-900 dark:text-white">
+                  {formatCurrency(consensus.eps_estimate)}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">Revenue Estimate:</span>
+                <span className="font-medium text-gray-900 dark:text-white">
+                  {formatCurrency(consensus.revenue_estimate, true)}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">Price Target:</span>
+                <span className="font-medium text-gray-900 dark:text-white">
+                  {formatCurrency(consensus.avg_price_target)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Analyst Distribution */}
+          {consensus.rating_distribution && (
+            <div>
+              <h5 className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                Analyst Distribution:
+              </h5>
+              <div className="space-y-1 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-400">Buy:</span>
+                  <span className="font-medium text-gray-900 dark:text-white">
+                    {consensus.rating_distribution.buy || 0}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-400">Hold:</span>
+                  <span className="font-medium text-gray-900 dark:text-white">
+                    {consensus.rating_distribution.hold || 0}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-400">Sell:</span>
+                  <span className="font-medium text-gray-900 dark:text-white">
+                    {consensus.rating_distribution.sell || 0}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Financial Metrics */}
+          <div>
+            <h5 className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+              Financial Metrics
+            </h5>
+            <div className="space-y-1 text-xs">
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">EPS/Revenue Ratio:</span>
+                <span className="font-medium text-gray-900 dark:text-white">
+                  {(consensus.eps_estimate && consensus.revenue_estimate) ? 
+                    `${((consensus.eps_estimate / (consensus.revenue_estimate / 1000000000)) * 100).toFixed(3)}%` : 'N/A'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">Price/EPS Ratio:</span>
+                <span className="font-medium text-gray-900 dark:text-white">
+                  {(consensus.avg_price_target && consensus.eps_estimate) ? 
+                    `${(consensus.avg_price_target / consensus.eps_estimate).toFixed(1)}x` : 'N/A'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Guidance */}
+          <div>
+            <h5 className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+              Guidance
+            </h5>
+            <div className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
+              {consensus.guidance || 'No guidance available'}
+            </div>
+          </div>
+
+          {/* Analyst Reaction */}
+          <div>
+            <h5 className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+              Analyst Reaction
+            </h5>
+            <div className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
+              {consensus.analyst_reaction || 'No analyst reaction available'}
+            </div>
+          </div>
+
+          {/* Sentiment Analysis */}
+          <div>
+            <h5 className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+              Sentiment Analysis
+            </h5>
+            <div className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
+              {consensus.sentiment_analysis || 'No sentiment analysis available'}
+            </div>
+          </div>
+
+          {/* Analyst Credibility */}
+          {consensus.credibility_score && (
+            <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-3">
+              <h5 className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                Analyst Credibility
+              </h5>
+              <div className="space-y-1 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-400">Credibility Score:</span>
+                  <span className={`font-medium ${
+                    consensus.credibility_score >= 0.8 ? 'text-green-600 dark:text-green-400' :
+                    consensus.credibility_score >= 0.6 ? 'text-yellow-600 dark:text-yellow-400' :
+                    'text-red-600 dark:text-red-400'
+                  }`}>
+                    {(consensus.credibility_score * 100).toFixed(0)}%
+                  </span>
+                </div>
+                {consensus.weighted_rating && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 dark:text-gray-400">Weighted Rating:</span>
+                    <span className="font-medium text-gray-900 dark:text-white">
+                      {consensus.weighted_rating}
+                    </span>
+                  </div>
+                )}
+              </div>
+              <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                Based on historical accuracy and track record
+              </div>
+            </div>
+          )}
+
+          {/* Analyst Confidence */}
+          <div>
+            <h5 className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2">
+              Data Quality
+            </h5>
+            <div className="space-y-1 text-xs">
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">Confidence:</span>
+                <span className="font-medium text-gray-900 dark:text-white">
+                  {consensus.confidence ? `${(consensus.confidence * 100).toFixed(0)}%` : 'N/A'}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">Total Analysts:</span>
+                <span className="font-medium text-gray-900 dark:text-white">
+                  {consensus.rating_distribution ? 
+                    (consensus.rating_distribution.buy || 0) + (consensus.rating_distribution.hold || 0) + (consensus.rating_distribution.sell || 0)
+                    : 'N/A'
+                  }
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600 dark:text-gray-400">Data Source:</span>
+                <span className="font-medium text-gray-900 dark:text-white text-xs">
+                  {consensus.dataSource?.replace('_', ' ').toUpperCase() || 'N/A'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Last Updated */}
+          <div className="pt-2 border-t border-gray-200 dark:border-gray-600">
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Last updated: {formatLastUpdated(consensus.updatedAt)}
+            </p>
+          </div>
+        </div>
+      ) : (
+        <div className="text-center py-4">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            No analyst consensus data available
+          </p>
+          <button
+            onClick={loadAnalystInsights}
+            className="mt-2 text-blue-600 dark:text-blue-400 text-xs hover:underline"
+          >
+            Refresh data
+          </button>
         </div>
       )}
     </div>
