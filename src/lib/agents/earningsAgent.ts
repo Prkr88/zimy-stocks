@@ -219,8 +219,12 @@ export class EarningsAgent {
           const existingSnapshot = await existingQuery.get();
           
           if (!existingSnapshot.empty) {
-            // Update the most recent existing record for this ticker
-            const doc = existingSnapshot.docs[0]; // Take the first one
+            // Update the most recent existing record for this ticker (strict duplicate prevention)
+            const mostRecentDoc = existingSnapshot.docs.reduce((latest, current) => {
+              const latestDate = latest.data().updatedAt?.toDate() || latest.data().createdAt?.toDate() || new Date(0);
+              const currentDate = current.data().updatedAt?.toDate() || current.data().createdAt?.toDate() || new Date(0);
+              return currentDate > latestDate ? current : latest;
+            });
             
             // Build update object, filtering out undefined values
             const updateData: any = {
@@ -240,7 +244,7 @@ export class EarningsAgent {
               updateData.expectedTime = 'after_market'; // Default value
             }
             
-            await doc.ref.update(updateData);
+            await mostRecentDoc.ref.update(updateData);
             
             updated++;
             results.push({
@@ -529,13 +533,7 @@ export class EarningsAgent {
             continue;
           }
 
-          // Check if this earnings event already exists
-          const existingQuery = adminDb.collection('earnings_events')
-            .where('ticker', '==', company.ticker)
-            .where('expectedDate', '==', company.nextEarningsDate);
-          
-          const existing = await existingQuery.get();
-          
+          // Prepare earnings event data first
           const earningsEvent = {
             ticker: company.ticker,
             companyName: company.companyName,
@@ -552,21 +550,34 @@ export class EarningsAgent {
             updatedAt: new Date(),
           };
 
-          if (existing.empty) {
-            // Create new earnings event
-            await adminDb.collection('earnings_events').add({
-              ...earningsEvent,
-              createdAt: new Date(),
+          // Strict duplicate prevention: check for any existing records with same ticker
+          const existingQuery = adminDb.collection('earnings_events')
+            .where('ticker', '==', company.ticker);
+          
+          const existing = await existingQuery.get();
+          
+          if (!existing.empty) {
+            // Ticker already exists - update the most recent record instead of creating duplicates
+            const mostRecentDoc = existing.docs.reduce((latest, current) => {
+              const latestDate = latest.data().updatedAt?.toDate() || latest.data().createdAt?.toDate() || new Date(0);
+              const currentDate = current.data().updatedAt?.toDate() || current.data().createdAt?.toDate() || new Date(0);
+              return currentDate > latestDate ? current : latest;
             });
-            created++;
-            console.log(`Created earnings event for ${company.ticker}`);
-          } else {
-            // Update existing earnings event
-            const docId = existing.docs[0].id;
-            await adminDb.collection('earnings_events').doc(docId).update(earningsEvent);
+            
+            // Always update existing record to prevent any duplicates
+            await adminDb.collection('earnings_events').doc(mostRecentDoc.id).update(earningsEvent);
             updated++;
-            console.log(`Updated earnings event for ${company.ticker}`);
+            console.log(`Updated existing earnings event for ${company.ticker} (strict duplicate prevention)`);
+            continue;
           }
+
+          // Create new earnings event (only reached if no existing ticker found)
+          await adminDb.collection('earnings_events').add({
+            ...earningsEvent,
+            createdAt: new Date(),
+          });
+          created++;
+          console.log(`Created new earnings event for ${company.ticker}`);
         } catch (error) {
           console.error(`Error processing ${company.ticker}:`, error);
           errors++;
