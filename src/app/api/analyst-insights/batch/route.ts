@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
 import { AnalystCredibilityTracker } from '@/lib/credibility/analystCredibility';
+import { EnhancedAnalystTracker } from '@/lib/analysts/enhancedAnalystTracker';
 
 /**
  * Simplified Analyst Insights API - Consensus Only (No AI Sentiment)
@@ -89,7 +90,7 @@ async function batchGetConsensus(tickers: string[]) {
           .limit(1)
           .get();
         
-        let consensusData = null;
+        let consensusData: any = null;
         if (!consensusQuery.empty) {
           const doc = consensusQuery.docs[0];
           consensusData = {
@@ -103,7 +104,22 @@ async function batchGetConsensus(tickers: string[]) {
           consensusData.analyst_reaction = getSampleAnalystReaction(ticker);
           consensusData.sentiment_analysis = "No sentiment analysis available";
           
-          // Calculate credibility-weighted consensus if analyst data exists
+          // Calculate credibility-weighted consensus using enhanced system
+          try {
+            const enhancedTracker = new EnhancedAnalystTracker();
+            const enhancedConsensus = await enhancedTracker.getWeightedConsensus(ticker, 30);
+            
+            if (enhancedConsensus.participants.length > 0) {
+              consensusData.enhanced_consensus = enhancedConsensus.consensus;
+              consensusData.consensus_confidence = enhancedConsensus.confidence;
+              consensusData.participant_count = enhancedConsensus.participants.length;
+              consensusData.avg_analyst_score = enhancedConsensus.participants.reduce((sum, p) => sum + p.score, 0) / enhancedConsensus.participants.length;
+            }
+          } catch (enhancedError) {
+            console.error(`Error getting enhanced consensus for ${ticker}:`, enhancedError);
+          }
+          
+          // Fallback to legacy credibility system
           try {
             const credibilityResult = await calculateCredibilityWeightedConsensus(ticker, consensusData);
             if (credibilityResult) {

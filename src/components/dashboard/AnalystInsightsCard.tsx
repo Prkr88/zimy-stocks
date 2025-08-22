@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 interface AnalystInsightsCardProps {
   ticker: string;
@@ -32,7 +32,7 @@ export default function AnalystInsightsCard({ ticker, companyName }: AnalystInsi
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const loadAnalystInsights = async () => {
+  const loadAnalystInsights = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -59,11 +59,11 @@ export default function AnalystInsightsCard({ ticker, companyName }: AnalystInsi
     } finally {
       setLoading(false);
     }
-  };
+  }, [ticker]);
 
   useEffect(() => {
     loadAnalystInsights();
-  }, [ticker]);
+  }, [loadAnalystInsights]);
 
   const formatCurrency = (value: number | undefined, isRevenue = false) => {
     if (!value) return 'N/A';
