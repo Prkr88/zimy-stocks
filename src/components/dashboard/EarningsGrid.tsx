@@ -58,20 +58,61 @@ export default function EarningsGrid({
     const loadAllRatings = async () => {
       setRatingsLoaded(false);
       
-      // Process in smaller batches to avoid overwhelming the API
-      const batchSize = 5;
+      // First, try to load ratings from a batch API if available
+      try {
+        const tickers = events.map(e => e.ticker);
+        console.log('🔍 Loading ratings for tickers:', tickers);
+        
+        // Try batch loading first (more efficient for Vercel)
+        const batchResponse = await fetch('/api/analyst-insights/batch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tickers, action: 'get' }),
+        });
+        
+        if (batchResponse.ok) {
+          const batchData = await batchResponse.json();
+          console.log('📊 Batch ratings response:', batchData);
+          
+          if (batchData.success && batchData.results) {
+            const newRatingsMap = new Map();
+            
+            Object.entries(batchData.results).forEach(([ticker, result]: [string, any]) => {
+              const rating = result?.insights?.consensus?.rating || null;
+              newRatingsMap.set(ticker, {
+                hasRating: Boolean(rating),
+                rating,
+                priority: getRatingPriority(rating)
+              });
+            });
+            
+            setRatingsMap(newRatingsMap);
+            setRatingsLoaded(true);
+            console.log('✅ Batch ratings loaded successfully');
+            return; // Skip individual loading if batch worked
+          }
+        }
+        console.warn('⚠️ Batch loading failed, falling back to individual calls');
+      } catch (error) {
+        console.error('❌ Error in batch loading, falling back to individual calls:', error);
+      }
+      
+      // Fallback: Process in smaller batches with individual API calls
+      const batchSize = 3; // Reduced batch size for Vercel
       const newRatingsMap = new Map();
       
       for (let i = 0; i < events.length; i += batchSize) {
         const batch = events.slice(i, i + batchSize);
+        console.log(`🔄 Loading ratings batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(events.length / batchSize)}: ${batch.map(e => e.ticker).join(', ')}`);
         
         const ratingsPromises = batch.map(async (event) => {
           try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+            const timeoutId = setTimeout(() => controller.abort(), 8000); // Increased timeout for Vercel
             
             const response = await fetch(`/api/stocks/${event.ticker}/analyst-insights`, {
-              signal: controller.signal
+              signal: controller.signal,
+              headers: { 'Cache-Control': 'no-cache' } // Prevent caching issues on Vercel
             });
             
             clearTimeout(timeoutId);
@@ -79,18 +120,21 @@ export default function EarningsGrid({
             if (response.ok) {
               const data = await response.json();
               const rating = data.success ? data.insights.consensus?.rating : null;
+              console.log(`📈 ${event.ticker}: ${rating || 'No Rating'}`);
               return { 
                 ticker: event.ticker, 
                 hasRating: Boolean(rating),
                 rating,
                 priority: getRatingPriority(rating)
               };
+            } else {
+              console.warn(`⚠️ API response not OK for ${event.ticker}:`, response.status);
             }
           } catch (error) {
             if (error instanceof Error && error.name === 'AbortError') {
-              console.warn(`Timeout loading rating for ${event.ticker}`);
+              console.warn(`⏰ Timeout loading rating for ${event.ticker}`);
             } else {
-              console.error(`Error loading rating for ${event.ticker}:`, error);
+              console.error(`❌ Error loading rating for ${event.ticker}:`, error);
             }
           }
           return { ticker: event.ticker, hasRating: false, rating: null, priority: 0 };
@@ -104,13 +148,14 @@ export default function EarningsGrid({
         // Update the map progressively for better UX
         setRatingsMap(new Map(newRatingsMap));
         
-        // Small delay between batches to avoid rate limiting
+        // Longer delay between batches for Vercel stability
         if (i + batchSize < events.length) {
-          await new Promise(resolve => setTimeout(resolve, 100));
+          await new Promise(resolve => setTimeout(resolve, 500));
         }
       }
       
       setRatingsLoaded(true);
+      console.log('✅ Individual ratings loading completed');
     };
 
     if (events.length > 0) {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createAnalystConsensusAgent } from '@/lib/agents/analystConsensusAgent';
 import { createEnhancedEarningsAgent } from '@/lib/agents/enhancedEarningsAgent';
 import { createSentimentAgent } from '@/lib/agents/sentimentAgent';
+import { adminDb } from '@/lib/firebase-admin';
 
 /**
  * Batch Analyst Insights API Endpoint
@@ -36,7 +37,17 @@ export async function POST(request: NextRequest) {
     
     console.log(`Batch processing analyst insights for ${tickers.length} tickers: ${tickers.join(', ')}`);
     
-    if (action === 'refresh') {
+    if (action === 'get') {
+      // Get existing ratings without updating
+      const results = await batchGetInsights(tickers);
+      
+      return NextResponse.json({
+        success: true,
+        action: 'batch_get',
+        tickers,
+        results
+      });
+    } else if (action === 'refresh') {
       const results = await batchRefreshInsights(tickers, {
         updateConsensus,
         updateEarnings,
@@ -62,7 +73,7 @@ export async function POST(request: NextRequest) {
       });
     } else {
       return NextResponse.json(
-        { error: 'Invalid action. Use "refresh" or "consensus".' },
+        { error: 'Invalid action. Use "get", "refresh", or "consensus".' },
         { status: 400 }
       );
     }
@@ -181,6 +192,72 @@ async function batchRefreshInsights(
     results,
     summary
   };
+}
+
+/**
+ * Batch get existing insights without updating
+ */
+async function batchGetInsights(tickers: string[]) {
+  const results: Record<string, any> = {};
+  
+  console.log(`Getting existing insights for ${tickers.length} tickers...`);
+  
+  // Process in smaller batches to avoid timeout
+  const batchSize = 3;
+  for (let i = 0; i < tickers.length; i += batchSize) {
+    const batch = tickers.slice(i, i + batchSize);
+    
+    const batchPromises = batch.map(async (ticker) => {
+      try {
+        // Get existing consensus data from database
+        const consensusQuery = await adminDb
+          .collection('analyst_consensus')
+          .where('ticker', '==', ticker)
+          .orderBy('updatedAt', 'desc')
+          .limit(1)
+          .get();
+        
+        let consensusData = null;
+        if (!consensusQuery.empty) {
+          const doc = consensusQuery.docs[0];
+          consensusData = {
+            ...doc.data(),
+            id: doc.id
+          };
+        }
+        
+        return {
+          ticker,
+          insights: {
+            consensus: consensusData
+          }
+        };
+      } catch (error) {
+        console.error(`Error getting insights for ${ticker}:`, error);
+        return {
+          ticker,
+          insights: {
+            consensus: null
+          }
+        };
+      }
+    });
+    
+    const batchResults = await Promise.allSettled(batchPromises);
+    batchResults.forEach((result, index) => {
+      const ticker = batch[index];
+      if (result.status === 'fulfilled') {
+        results[ticker] = result.value;
+      } else {
+        results[ticker] = {
+          ticker,
+          insights: { consensus: null }
+        };
+      }
+    });
+  }
+  
+  return results;
 }
 
 /**
