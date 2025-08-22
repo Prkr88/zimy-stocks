@@ -42,10 +42,11 @@ export default function EarningsGrid({
       console.log('🔍 Loading ratings for tickers:', tickers);
       
       // Try batch loading in chunks (batch API has 3 ticker limit)
+      const newRatingsMap = new Map();
+      let ratingsFound = 0;
+      
       try {
         const batchSize = 3;
-        const newRatingsMap = new Map();
-        let ratingsFound = 0;
         let batchSuccess = true;
         
         for (let i = 0; i < tickers.length; i += batchSize) {
@@ -60,6 +61,7 @@ export default function EarningsGrid({
             
             if (batchResponse.ok) {
               const batchData = await batchResponse.json();
+              console.log(`✅ Batch ${i / batchSize + 1} success:`, batchData.success);
               
               if (batchData.success && batchData.results) {
                 // Process this batch's results
@@ -73,11 +75,15 @@ export default function EarningsGrid({
                     rating
                   });
                 });
+                console.log(`📊 Batch ${i / batchSize + 1} processed: ${batchTickers.length} tickers`);
               } else {
+                console.error(`❌ Batch ${i / batchSize + 1} invalid response:`, batchData);
                 batchSuccess = false;
                 break;
               }
             } else {
+              const errorText = await batchResponse.text();
+              console.error(`❌ Batch ${i / batchSize + 1} HTTP error ${batchResponse.status}:`, errorText);
               batchSuccess = false;
               break;
             }
@@ -105,64 +111,19 @@ export default function EarningsGrid({
         console.error('❌ Error in batch loading, falling back to individual calls:', error);
       }
       
-      // Fallback: Process in smaller batches with individual API calls
-      const batchSize = 3; // Reduced batch size for Vercel
-      const newRatingsMap = new Map();
-      
-      for (let i = 0; i < events.length; i += batchSize) {
-        const batch = events.slice(i, i + batchSize);
-        console.log(`🔄 Loading ratings batch ${Math.floor(i / batchSize) + 1}/${Math.ceil(events.length / batchSize)}: ${batch.map(e => e.ticker).join(', ')}`);
-        
-        const ratingsPromises = batch.map(async (event) => {
-          try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 8000); // Increased timeout for Vercel
-            
-            const response = await fetch(`/api/stocks/${event.ticker}/analyst-insights`, {
-              signal: controller.signal,
-              headers: { 'Cache-Control': 'no-cache' } // Prevent caching issues on Vercel
-            });
-            
-            clearTimeout(timeoutId);
-            
-            if (response.ok) {
-              const data = await response.json();
-              const rating = data.success ? data.insights.consensus?.rating : null;
-              console.log(`📈 ${event.ticker}: ${rating || 'No Rating'}`);
-              return { 
-                ticker: event.ticker, 
-                hasRating: Boolean(rating),
-                rating
-              };
-            } else {
-              console.warn(`⚠️ API response not OK for ${event.ticker}:`, response.status);
-            }
-          } catch (error) {
-            if (error instanceof Error && error.name === 'AbortError') {
-              console.warn(`⏰ Timeout loading rating for ${event.ticker}`);
-            } else {
-              console.error(`❌ Error loading rating for ${event.ticker}:`, error);
-            }
-          }
-          return { ticker: event.ticker, hasRating: false, rating: null };
-        });
-
-        const batchRatings = await Promise.all(ratingsPromises);
-        batchRatings.forEach(({ ticker, hasRating, rating }) => {
-          newRatingsMap.set(ticker, { hasRating, rating });
-        });
-        
-        // Update the map progressively for better UX
-        setRatingsMap(new Map(newRatingsMap));
-        
-        // Longer delay between batches for Vercel stability
-        if (i + batchSize < events.length) {
-          await new Promise(resolve => setTimeout(resolve, 500));
-        }
+      // If batch loading failed completely, still set ratingsLoaded to true
+      // so the UI doesn't stay in loading state forever and show alphabetical sort
+      if (newRatingsMap.size === 0) {
+        console.log('📝 Batch loading completely failed, setting empty ratings map');
+        setRatingsMap(new Map());
+        setRatingsLoaded(true);
+        return; // Skip individual loading and just show alphabetical sort
       }
       
+      // If we have partial results from batch loading, use them and mark as loaded
+      console.log(`✅ Partial batch success: ${newRatingsMap.size} ratings loaded`);
+      setRatingsMap(newRatingsMap);
       setRatingsLoaded(true);
-      console.log('✅ Individual ratings loading completed');
     };
 
     loadAllRatings();
@@ -190,11 +151,10 @@ export default function EarningsGrid({
       );
     }
 
-    // IMPORTANT: Only sort by ratings if ratings are fully loaded
-    // Otherwise, show loading spinner to user
-    if (ratingsLoaded) {
-      // Simple sorting: any rating before no rating
-      filtered = filtered.sort((a, b) => {
+    // Apply sorting: companies with ratings first, then alphabetical within groups
+    filtered = filtered.sort((a, b) => {
+      if (ratingsLoaded && ratingsMap.size > 0) {
+        // Use ratings-based sorting when available
         const aRatingData = ratingsMap.get(a.ticker) || { hasRating: false, rating: null };
         const bRatingData = ratingsMap.get(b.ticker) || { hasRating: false, rating: null };
         
@@ -205,13 +165,21 @@ export default function EarningsGrid({
         if (aHasRating && !bHasRating) return -1;
         if (!aHasRating && bHasRating) return 1;
         
-        // For companies in the same category (both with or both without ratings), sort by ticker
+        // For companies in the same category, sort by ticker alphabetically
         return a.ticker.localeCompare(b.ticker);
-      });
+      } else {
+        // Fallback: just sort alphabetically by ticker if no ratings
+        return a.ticker.localeCompare(b.ticker);
+      }
+    });
 
-      // Debug logging for sorting verification
-      if (process.env.NODE_ENV === 'development') {
-        console.log('📊 Sorted Results:', filtered.slice(0, 10).map((event, index) => {
+    // Debug logging for sorting verification
+    if (process.env.NODE_ENV === 'development') {
+      console.log('📊 Final Sorting Results:', {
+        ratingsLoaded,
+        ratingsMapSize: ratingsMap.size,
+        totalItems: filtered.length,
+        firstFew: filtered.slice(0, 5).map((event, index) => {
           const ratingData = ratingsMap.get(event.ticker);
           return {
             position: index + 1,
@@ -219,14 +187,7 @@ export default function EarningsGrid({
             rating: ratingData?.rating || 'No Rating',
             hasRating: Boolean(ratingData?.rating)
           };
-        }));
-      }
-    } else {
-      // If ratings not loaded yet, just sort by date to show something consistent
-      filtered = filtered.sort((a, b) => {
-        const aDate = new Date(a.expectedDate);
-        const bDate = new Date(b.expectedDate);
-        return aDate.getTime() - bDate.getTime();
+        })
       });
     }
 
