@@ -112,9 +112,9 @@ export default function CachedEarningsGrid({
       
       // Try to use any available cached data as fallback
       const fallbackData = analystCache.get(CACHE_KEYS.EARNINGS_GRID);
-      if (fallbackData?.events) {
+      if ((fallbackData as any)?.events) {
         console.log('Using stale cache data as fallback');
-        setEarningsEvents(fallbackData.events);
+        setEarningsEvents((fallbackData as any).events);
         setCacheStatus('stale');
         setError('Using cached data (connection failed)');
       }

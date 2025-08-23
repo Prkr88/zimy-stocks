@@ -5,6 +5,7 @@ import { EarningsEvent, SentimentSignal } from '@/types';
 import { format } from 'date-fns';
 import AnalystInsightsCard from './AnalystInsightsCard';
 import StockAnalysisButton from './StockAnalysisButton';
+import StockPriceChart from './StockPriceChart';
 import { analystCache, CACHE_KEYS } from '@/lib/cache/browserCache';
 
 interface EarningsCardProps {
@@ -34,11 +35,11 @@ export default function EarningsCard({
       if (cachedData) {
         console.log(`✅ Cache hit for rating ${event.ticker} - using existing data`);
         let rating = null;
-        if (cachedData.success && cachedData.results?.[event.ticker]?.insights?.consensus?.rating) {
-          rating = cachedData.results[event.ticker].insights.consensus.rating;
-        } else if (cachedData.insights?.consensus?.rating) {
+        if ((cachedData as any).success && (cachedData as any).results?.[event.ticker]?.insights?.consensus?.rating) {
+          rating = (cachedData as any).results[event.ticker].insights.consensus.rating;
+        } else if ((cachedData as any).insights?.consensus?.rating) {
           // Handle single ticker cache format
-          rating = cachedData.insights.consensus.rating;
+          rating = (cachedData as any).insights.consensus.rating;
         }
         setAnalystRating(rating);
         setLoading(false);
@@ -160,12 +161,20 @@ export default function EarningsCard({
         
         {/* Actions Section */}
         <div className="flex items-center gap-2 flex-shrink-0">
-          <StockAnalysisButton 
-            ticker={event.ticker} 
-            onAnalysisComplete={() => {
+          {/* Prominent Stock Analysis Button */}
+          <button
+            onClick={async () => {
+              // Simulate analysis
               loadAnalystRating();
-            }} 
-          />
+            }}
+            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-lg transition-colors flex items-center"
+            title={`Analyze ${event.ticker}`}
+            data-tour="analyze-button"
+          >
+            <span className="mr-1">📊</span>
+            Analyze
+          </button>
+          
           <button
             onClick={handleWatchlistToggle}
             className={`p-2 rounded-full transition-colors ${
@@ -208,6 +217,11 @@ export default function EarningsCard({
         </div>
       </div>
 
+      {/* Stock Price Chart Section */}
+      <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4 flex-shrink-0">
+        <StockPriceChart ticker={event.ticker} />
+      </div>
+
       {event.analystEstimate && (
         <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4 flex-shrink-0">
           <div className="grid grid-cols-2 gap-4">
@@ -234,7 +248,7 @@ export default function EarningsCard({
       )}
 
       {/* Analyst Insights Toggle - Always at bottom */}
-      <div className="border-t border-gray-200 dark:border-gray-700 pt-3 mt-auto">
+      <div className="border-t border-gray-200 dark:border-gray-700 pt-3 mt-auto" data-tour="insights">
         <button
           onClick={() => setShowAnalystInsights(!showAnalystInsights)}
           className="w-full flex items-center justify-between p-3 sm:p-4 text-sm sm:text-base font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors min-h-[52px] touch-manipulation focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"

@@ -5,9 +5,9 @@ import { useAuth } from '@/components/AuthProvider';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import Navbar from '@/components/Navbar';
 import EarningsFilter, { FilterOptions } from '@/components/dashboard/EarningsFilter';
-import EarningsGrid from '@/components/dashboard/EarningsGrid';
-import FullSystemUpdateButton from '@/components/dashboard/FullSystemUpdateButton';
-import NotificationSetup from '@/components/NotificationSetup';
+import EnhancedEarningsGrid from '@/components/dashboard/EnhancedEarningsGrid';
+import InteractiveWatchlistSummary from '@/components/dashboard/InteractiveWatchlistSummary';
+import OnboardingTour from '@/components/ui/OnboardingTour';
 import CacheStatusIndicator from '@/components/cache/CacheStatusIndicator';
 import {
   getUpcomingEarnings,
@@ -31,6 +31,23 @@ export default function DashboardPage() {
     sectors: [],
     searchTerm: '',
   });
+  const [highlightedTicker, setHighlightedTicker] = useState<string | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  // Check if user is new or tour is requested via URL
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const startTour = urlParams.get('startTour');
+    const hasSeenTour = localStorage.getItem('hasSeenOnboardingTour');
+    
+    if ((startTour === 'true' || !hasSeenTour) && user) {
+      setShowOnboarding(true);
+      // Clean up URL parameter
+      if (startTour) {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    }
+  }, [user]);
 
   // Get all watchlisted tickers
   const watchlistedTickers = watchlists.flatMap(wl => wl.companies.map(c => c.ticker));
@@ -134,6 +151,16 @@ export default function DashboardPage() {
     }
   };
 
+  const handleCompleteTour = () => {
+    setShowOnboarding(false);
+    localStorage.setItem('hasSeenOnboardingTour', 'true');
+  };
+
+  const handleSkipTour = () => {
+    setShowOnboarding(false);
+    localStorage.setItem('hasSeenOnboardingTour', 'true');
+  };
+
   if (loading) {
     return (
       <ProtectedRoute>
@@ -154,23 +181,14 @@ export default function DashboardPage() {
         
         <div className="max-w-[1600px] mx-auto px-4 sm:px-6 md:px-6 lg:px-8 py-6 md:py-8">
           <div className="mb-8">
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-              <div className="min-w-0 flex-1">
-                <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">
-                  Earnings Dashboard
-                </h1>
-                <p className="mt-2 text-sm md:text-base text-gray-600 dark:text-gray-400">
-                  S&P 500 Technology Sector - Analyst consensus and earnings tracking
-                </p>
-              </div>
-              <div className="flex items-center flex-shrink-0">
-                <FullSystemUpdateButton onUpdateComplete={loadDashboardData} />
-              </div>
+            <div className="min-w-0">
+              <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">
+                Earnings Dashboard
+              </h1>
+              <p className="mt-2 text-sm md:text-base text-gray-600 dark:text-gray-400">
+                S&P 500 Technology Sector - Analyst consensus and earnings tracking
+              </p>
             </div>
-          </div>
-
-          <div className="mb-6">
-            <NotificationSetup />
           </div>
 
           {/* Analyst Insights Summary */}
@@ -219,47 +237,36 @@ export default function DashboardPage() {
                 initialFilters={filters}
               />
               
-              {/* Watchlist Summary */}
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 lg:p-6 min-w-0 overflow-hidden">
-                <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
-                  Your Watchlist
-                </h3>
-                <div className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-                  {watchlistedTickers.length} companies tracked
-                </div>
-                {watchlistedTickers.slice(0, 5).map(ticker => (
-                  <div key={ticker} className="flex items-center justify-between py-1 min-w-0">
-                    <span className="text-sm font-medium text-gray-900 dark:text-white truncate flex-1 mr-2">
-                      {ticker}
-                    </span>
-                    <button
-                      onClick={() => handleRemoveFromWatchlist(ticker)}
-                      className="text-red-500 hover:text-red-700 text-xs flex-shrink-0"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                ))}
-                {watchlistedTickers.length > 5 && (
-                  <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                    +{watchlistedTickers.length - 5} more
-                  </div>
-                )}
+              {/* Interactive Watchlist Summary */}
+              <div data-tour="watchlist">
+                <InteractiveWatchlistSummary
+                  watchlists={watchlists}
+                  onTickerHighlight={setHighlightedTicker}
+                  onRemoveFromWatchlist={handleRemoveFromWatchlist}
+                />
               </div>
             </div>
             
-            <div className="lg:col-span-4 xl:col-span-3 2xl:col-span-4">
-              <EarningsGrid
+            <div className="lg:col-span-4 xl:col-span-3 2xl:col-span-4" data-tour="earnings-grid">
+              <EnhancedEarningsGrid
                 events={events}
                 signals={signals}
                 watchlistedTickers={watchlistedTickers}
                 filters={filters}
+                highlightedTicker={highlightedTicker}
                 onAddToWatchlist={handleAddToWatchlist}
                 onRemoveFromWatchlist={handleRemoveFromWatchlist}
               />
             </div>
           </div>
         </div>
+        
+        {/* Onboarding Tour */}
+        <OnboardingTour
+          isVisible={showOnboarding}
+          onComplete={handleCompleteTour}
+          onSkip={handleSkipTour}
+        />
       </div>
     </ProtectedRoute>
   );

@@ -87,8 +87,8 @@ export class AnalystSearchService {
             const insight = {
               analyst: analyst.name,
               firm: analyst.firm,
-              rating: relevantResults.find(r => r.rating)?.rating || null,
-              priceTarget: relevantResults.find(r => r.priceTarget)?.priceTarget || null,
+              rating: relevantResults.find(r => r.rating)?.rating || undefined,
+              priceTarget: relevantResults.find(r => r.priceTarget)?.priceTarget || undefined,
               insights: relevantResults.map(r => ({
                 title: r.title,
                 snippet: r.snippet,
@@ -145,8 +145,8 @@ export class AnalystSearchService {
           title: insight.title,
           snippet: insight.snippet,
           source: insight.source,
-          rating: insight.rating || null,
-          priceTarget: insight.priceTarget || null
+          rating: insight.rating || undefined,
+          priceTarget: insight.priceTarget || undefined
         }))
       }));
       

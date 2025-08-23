@@ -64,7 +64,9 @@ export class BrowserCache {
     // Enforce max size by removing oldest entries
     if (this.cache.size >= this.maxSize) {
       const oldestKey = this.cache.keys().next().value;
-      this.cache.delete(oldestKey);
+      if (oldestKey !== undefined) {
+        this.cache.delete(oldestKey);
+      }
     }
 
     this.cache.set(key, {

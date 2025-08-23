@@ -107,9 +107,9 @@ export function useCachedAnalystProfile(analystId: string): UseCachedAnalystProf
       
       // Try to use stale cache data as fallback
       const staleData = analystCache.get(CACHE_KEYS.ANALYST_PROFILE(analystId));
-      if (staleData?.profile) {
+      if ((staleData as any)?.profile) {
         console.log('Using stale cache data as fallback');
-        setProfile(staleData.profile);
+        setProfile((staleData as any).profile);
         setCacheStatus('stale');
         setError('Using cached data (may be outdated)');
       }
@@ -201,8 +201,8 @@ export function useCachedTopAnalysts(limit = 50, orderBy: 'score' | 'lifetime_ca
       
       // Try stale cache
       const staleData = analystCache.get(CACHE_KEYS.TOP_ANALYSTS(orderBy, limit));
-      if (staleData?.analysts) {
-        setAnalysts(staleData.analysts);
+      if ((staleData as any)?.analysts) {
+        setAnalysts((staleData as any).analysts);
         setCacheStatus('stale');
         setError('Using cached data (may be outdated)');
       }

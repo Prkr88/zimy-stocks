@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
 import { createCacheAwareResponse, extractFirestoreCacheMetadata } from '@/lib/cache/cacheAwareResponse';
+import type { Query, CollectionReference, DocumentData } from 'firebase-admin/firestore';
 
 /**
  * GET /api/analysts - Get analyst leaderboard and rankings
@@ -19,7 +20,7 @@ export async function GET(request: NextRequest) {
     console.log(`Getting analyst rankings - orderBy: ${orderBy}, limit: ${limit}, sector: ${sector}`);
     
     // Get enhanced analysts from new system
-    let query = adminDb.collection('analysts_enhanced');
+    let query: Query<DocumentData> = adminDb.collection('analysts_enhanced');
     
     // Apply sector filter if specified
     if (sector) {

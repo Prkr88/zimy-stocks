@@ -42,11 +42,11 @@ export default function AnalystInsightsCard({ ticker, companyName }: AnalystInsi
       const cachedData = analystCache.get(CACHE_KEYS.ANALYST_INSIGHTS(ticker));
       if (cachedData) {
         console.log(`✅ Cache hit for ${ticker} - using existing data`);
-        if (cachedData.success && cachedData.results?.[ticker]?.insights?.consensus) {
-          setConsensus(cachedData.results[ticker].insights.consensus);
-        } else if (cachedData.insights?.consensus) {
+        if ((cachedData as any).success && (cachedData as any).results?.[ticker]?.insights?.consensus) {
+          setConsensus((cachedData as any).results[ticker].insights.consensus);
+        } else if ((cachedData as any).insights?.consensus) {
           // Handle single ticker cache format
-          setConsensus(cachedData.insights.consensus);
+          setConsensus((cachedData as any).insights.consensus);
         } else {
           setConsensus(null);
         }
@@ -86,9 +86,9 @@ export default function AnalystInsightsCard({ ticker, companyName }: AnalystInsi
       
       // Try to use stale cache data as fallback
       const staleData = analystCache.get(CACHE_KEYS.ANALYST_INSIGHTS(ticker));
-      if (staleData?.success && staleData.results?.[ticker]?.insights?.consensus) {
+      if ((staleData as any)?.success && (staleData as any).results?.[ticker]?.insights?.consensus) {
         console.log('Using stale cache data as fallback');
-        setConsensus(staleData.results[ticker].insights.consensus);
+        setConsensus((staleData as any).results[ticker].insights.consensus);
         setError('Using cached data (may be outdated)');
       }
     } finally {
