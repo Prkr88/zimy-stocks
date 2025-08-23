@@ -111,7 +111,9 @@ async function batchGetConsensus(tickers: string[]): Promise<{
           consensusData.analyst_reaction = getSampleAnalystReaction(ticker);
           consensusData.sentiment_analysis = "No sentiment analysis available";
           
-          // Search for real analyst insights using Serper
+          // Search for real analyst insights using Serper - DISABLED TO SAVE API CREDITS
+          // TODO: Re-enable when ready to use Serper searches
+          /*
           try {
             const analystSearchService = createAnalystSearchService();
             
@@ -160,6 +162,7 @@ async function batchGetConsensus(tickers: string[]): Promise<{
             console.error(`Error fetching analyst insights for ${ticker}:`, analystSearchError);
             // Don't fail the entire request, just log the error
           }
+          */
           
           // Calculate credibility-weighted consensus using enhanced system
           try {
