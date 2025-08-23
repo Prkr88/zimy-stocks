@@ -40,6 +40,13 @@ export default function Navbar() {
                 Dashboard
               </Link>
               <Link
+                href="/analysts"
+                className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 px-3 py-2 text-sm font-medium flex items-center"
+              >
+                <span className="mr-1">👨‍💼</span>
+                Analysts
+              </Link>
+              <Link
                 href="/history"
                 className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 px-3 py-2 text-sm font-medium"
               >

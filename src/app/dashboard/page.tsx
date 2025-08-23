@@ -8,6 +8,7 @@ import EarningsFilter, { FilterOptions } from '@/components/dashboard/EarningsFi
 import EarningsGrid from '@/components/dashboard/EarningsGrid';
 import FullSystemUpdateButton from '@/components/dashboard/FullSystemUpdateButton';
 import NotificationSetup from '@/components/NotificationSetup';
+import CacheStatusIndicator from '@/components/cache/CacheStatusIndicator';
 import {
   getUpcomingEarnings,
   getLatestSignals,
@@ -174,9 +175,12 @@ export default function DashboardPage() {
 
           {/* Analyst Insights Summary */}
           <div className="mb-6">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
-              Analyst Insights Summary
-            </h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                Analyst Insights Summary
+              </h2>
+              <CacheStatusIndicator showDetails={true} className="ml-4" />
+            </div>
             <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 max-w-4xl mx-auto">
                 <div className="text-center">

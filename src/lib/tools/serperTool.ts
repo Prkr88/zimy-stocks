@@ -66,6 +66,43 @@ export function formatEarningsCalendarQuery(dateRange?: string): string {
 }
 
 /**
+ * Format a search query for specific analyst insights
+ */
+export function formatAnalystInsightQuery(ticker: string, analystName?: string, firmName?: string): string {
+  let query = `${ticker} analyst rating recommendation price target 2024 2025`;
+  
+  if (analystName && firmName) {
+    query = `${analystName} ${firmName} ${ticker} rating recommendation price target`;
+  } else if (firmName) {
+    query = `${firmName} ${ticker} analyst rating recommendation price target`;
+  } else if (analystName) {
+    query = `${analystName} ${ticker} rating recommendation price target`;
+  }
+  
+  return query;
+}
+
+/**
+ * Format search queries for all real analysts
+ */
+export function formatMultipleAnalystQueries(ticker: string, analysts: Array<{name: string, firm: string}>): string[] {
+  const queries = [];
+  
+  // Create individual queries for top analysts
+  for (const analyst of analysts.slice(0, 10)) { // Limit to top 10 to avoid rate limits
+    queries.push(formatAnalystInsightQuery(ticker, analyst.name, analyst.firm));
+  }
+  
+  // Add general queries for firm coverage
+  const uniqueFirms = [...new Set(analysts.map(a => a.firm))];
+  for (const firm of uniqueFirms.slice(0, 5)) { // Top 5 firms
+    queries.push(`${firm} ${ticker} analyst coverage rating recommendation price target 2024 2025`);
+  }
+  
+  return queries;
+}
+
+/**
  * Parse Serper search results to extract relevant news items
  */
 export function parseSerperResults(searchResults: string): string[] {
@@ -164,6 +201,96 @@ export function parseEarningsCalendarResults(searchResults: string): Array<{
     return earningsInfo.slice(0, 10); // Limit to top 10 results
   } catch (error) {
     console.error('Error parsing earnings calendar results:', error);
+    return [];
+  }
+}
+
+/**
+ * Parse analyst-specific search results
+ */
+export function parseAnalystResults(searchResults: string, analystName?: string, firmName?: string): Array<{
+  title: string;
+  snippet: string;
+  source: string;
+  analystMention: boolean;
+  firmMention: boolean;
+  rating?: string;
+  priceTarget?: string;
+}> {
+  try {
+    const parsed = JSON.parse(searchResults);
+    const results: Array<{
+      title: string;
+      snippet: string;
+      source: string;
+      analystMention: boolean;
+      firmMention: boolean;
+      rating?: string;
+      priceTarget?: string;
+    }> = [];
+    
+    // Common rating keywords
+    const ratingKeywords = ['buy', 'sell', 'hold', 'strong buy', 'strong sell', 'outperform', 'underperform', 'neutral', 'overweight', 'underweight'];
+    
+    // Process organic search results
+    if (parsed.organic) {
+      parsed.organic.forEach((result: any) => {
+        if (result.title && result.snippet) {
+          const text = `${result.title} ${result.snippet}`.toLowerCase();
+          
+          // Check for analyst and firm mentions
+          const analystMention = analystName ? text.includes(analystName.toLowerCase()) : false;
+          const firmMention = firmName ? text.includes(firmName.toLowerCase()) : false;
+          
+          // Extract potential ratings
+          const foundRating = ratingKeywords.find(rating => text.includes(rating));
+          
+          // Extract price targets (e.g., $150, $150.00, price target $150)
+          const priceTargetMatch = text.match(/(?:price target|target price|pt)[\s:]*\$?(\d+(?:\.\d{2})?)/i) || 
+                                  text.match(/\$(\d+(?:\.\d{2})?)\s*(?:price target|target|pt)/i);
+          
+          results.push({
+            title: result.title,
+            snippet: result.snippet,
+            source: result.link || 'web search',
+            analystMention,
+            firmMention,
+            rating: foundRating,
+            priceTarget: priceTargetMatch ? `$${priceTargetMatch[1]}` : undefined
+          });
+        }
+      });
+    }
+    
+    // Process news results
+    if (parsed.news) {
+      parsed.news.forEach((result: any) => {
+        if (result.title && result.snippet) {
+          const text = `${result.title} ${result.snippet}`.toLowerCase();
+          
+          const analystMention = analystName ? text.includes(analystName.toLowerCase()) : false;
+          const firmMention = firmName ? text.includes(firmName.toLowerCase()) : false;
+          
+          const foundRating = ratingKeywords.find(rating => text.includes(rating));
+          const priceTargetMatch = text.match(/(?:price target|target price|pt)[\s:]*\$?(\d+(?:\.\d{2})?)/i) || 
+                                  text.match(/\$(\d+(?:\.\d{2})?)\s*(?:price target|target|pt)/i);
+          
+          results.push({
+            title: result.title,
+            snippet: result.snippet,
+            source: result.source || 'news',
+            analystMention,
+            firmMention,
+            rating: foundRating,
+            priceTarget: priceTargetMatch ? `$${priceTargetMatch[1]}` : undefined
+          });
+        }
+      });
+    }
+    
+    return results.slice(0, 15); // Limit to top 15 results
+  } catch (error) {
+    console.error('Error parsing analyst results:', error);
     return [];
   }
 }

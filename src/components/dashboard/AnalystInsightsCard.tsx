@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { cachedFetch, CACHE_KEYS, analystCache } from '@/lib/cache/browserCache';
 
 interface AnalystInsightsCardProps {
   ticker: string;
@@ -37,25 +38,59 @@ export default function AnalystInsightsCard({ ticker, companyName }: AnalystInsi
       setLoading(true);
       setError(null);
       
-      const response = await fetch('/api/analyst-insights/batch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tickers: [ticker], action: 'get' }),
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.results?.[ticker]?.insights?.consensus) {
-          setConsensus(data.results[ticker].insights.consensus);
+      // First, try to get data from cache (might be from batch loading)
+      const cachedData = analystCache.get(CACHE_KEYS.ANALYST_INSIGHTS(ticker));
+      if (cachedData) {
+        console.log(`✅ Cache hit for ${ticker} - using existing data`);
+        if (cachedData.success && cachedData.results?.[ticker]?.insights?.consensus) {
+          setConsensus(cachedData.results[ticker].insights.consensus);
+        } else if (cachedData.insights?.consensus) {
+          // Handle single ticker cache format
+          setConsensus(cachedData.insights.consensus);
         } else {
           setConsensus(null);
         }
+        setLoading(false);
+        return;
+      }
+      
+      console.log(`❌ Cache miss for ${ticker} - fetching from API`);
+      
+      // If not cached, make API request
+      const response = await fetch('/api/analyst-insights/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tickers: [ticker], action: 'get' })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      // Cache the result for future use
+      analystCache.set(CACHE_KEYS.ANALYST_INSIGHTS(ticker), data, {
+        ttl: 5 * 60 * 1000, // 5 minutes cache
+        lastModified: data.updatedAt || data.updated_at || data.lastModified
+      });
+      
+      if (data.success && data.results?.[ticker]?.insights?.consensus) {
+        setConsensus(data.results[ticker].insights.consensus);
       } else {
-        setError('Failed to load analyst insights');
+        setConsensus(null);
       }
     } catch (err) {
       console.error('Error loading analyst insights:', err);
       setError('Error loading analyst insights');
+      
+      // Try to use stale cache data as fallback
+      const staleData = analystCache.get(CACHE_KEYS.ANALYST_INSIGHTS(ticker));
+      if (staleData?.success && staleData.results?.[ticker]?.insights?.consensus) {
+        console.log('Using stale cache data as fallback');
+        setConsensus(staleData.results[ticker].insights.consensus);
+        setError('Using cached data (may be outdated)');
+      }
     } finally {
       setLoading(false);
     }

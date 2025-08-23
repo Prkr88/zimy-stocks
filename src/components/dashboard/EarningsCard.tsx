@@ -5,6 +5,7 @@ import { EarningsEvent, SentimentSignal } from '@/types';
 import { format } from 'date-fns';
 import AnalystInsightsCard from './AnalystInsightsCard';
 import StockAnalysisButton from './StockAnalysisButton';
+import { analystCache, CACHE_KEYS } from '@/lib/cache/browserCache';
 
 interface EarningsCardProps {
   event: EarningsEvent;
@@ -27,6 +28,26 @@ export default function EarningsCard({
   const loadAnalystRating = useCallback(async () => {
     try {
       setLoading(true);
+      
+      // First, try to get data from cache (might be from batch loading)
+      const cachedData = analystCache.get(CACHE_KEYS.ANALYST_INSIGHTS(event.ticker));
+      if (cachedData) {
+        console.log(`✅ Cache hit for rating ${event.ticker} - using existing data`);
+        let rating = null;
+        if (cachedData.success && cachedData.results?.[event.ticker]?.insights?.consensus?.rating) {
+          rating = cachedData.results[event.ticker].insights.consensus.rating;
+        } else if (cachedData.insights?.consensus?.rating) {
+          // Handle single ticker cache format
+          rating = cachedData.insights.consensus.rating;
+        }
+        setAnalystRating(rating);
+        setLoading(false);
+        return;
+      }
+      
+      console.log(`❌ Cache miss for rating ${event.ticker} - fetching from API`);
+      
+      // If not cached, make API request
       const response = await fetch(`/api/analyst-insights/batch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -35,6 +56,13 @@ export default function EarningsCard({
       
       if (response.ok) {
         const data = await response.json();
+        
+        // Cache the result for future use
+        analystCache.set(CACHE_KEYS.ANALYST_INSIGHTS(event.ticker), data, {
+          ttl: 5 * 60 * 1000, // 5 minutes cache
+          lastModified: data.updatedAt || data.updated_at || data.lastModified
+        });
+        
         if (data.success && data.results?.[event.ticker]?.insights?.consensus?.rating) {
           setAnalystRating(data.results[event.ticker].insights.consensus.rating);
         }

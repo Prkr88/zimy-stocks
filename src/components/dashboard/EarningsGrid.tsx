@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { EarningsEvent, SentimentSignal, WatchlistCompany } from '@/types';
 import EarningsCard from './EarningsCard';
 import { FilterOptions } from './EarningsFilter';
+import { analystCache } from '@/lib/cache/browserCache';
 
 interface EarningsGridProps {
   events: EarningsEvent[];
@@ -73,6 +74,23 @@ export default function EarningsGrid({
                     hasRating: Boolean(rating),
                     rating
                   });
+                  
+                  // Cache individual ticker data for AnalystInsightsCard components
+                  if (result) {
+                    const cacheKey = `analyst_insights_${ticker}`;
+                    const cachedData = {
+                      success: true,
+                      results: { [ticker]: result }
+                    };
+                    
+                    // Set cache directly using analystCache
+                    analystCache.set(cacheKey, cachedData, {
+                      ttl: 5 * 60 * 1000, // 5 minutes cache
+                      lastModified: batchData.updatedAt || batchData.updated_at || batchData.lastModified
+                    });
+                    
+                    console.log(`🟢 Cached individual ticker data for ${ticker} from batch`);
+                  }
                 });
                 
                 // Update UI immediately after each batch (progressive loading)

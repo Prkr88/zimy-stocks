@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminDb } from '@/lib/firebase-admin';
 import { AnalystCredibilityTracker } from '@/lib/credibility/analystCredibility';
 import { EnhancedAnalystTracker } from '@/lib/analysts/enhancedAnalystTracker';
+import { createCacheAwareResponse, extractFirestoreCacheMetadata } from '@/lib/cache/cacheAwareResponse';
+import { createAnalystSearchService } from '@/lib/services/analystSearchService';
 
 /**
  * Simplified Analyst Insights API - Consensus Only (No AI Sentiment)
@@ -41,14 +43,14 @@ export async function POST(request: NextRequest) {
     
     if (action === 'get') {
       // Get existing ratings without updating
-      const results = await batchGetConsensus(tickers);
+      const { results, cacheMetadata } = await batchGetConsensus(tickers);
       
-      return NextResponse.json({
+      return createCacheAwareResponse({
         success: true,
         action: 'batch_get',
         tickers,
         results
-      });
+      }, cacheMetadata);
     } else {
       return NextResponse.json(
         { error: 'Only "get" action is supported (AI analysis removed).' },
@@ -70,8 +72,12 @@ export async function POST(request: NextRequest) {
 /**
  * Batch get existing consensus data without AI processing
  */
-async function batchGetConsensus(tickers: string[]) {
+async function batchGetConsensus(tickers: string[]): Promise<{
+  results: Record<string, any>;
+  cacheMetadata: any;
+}> {
   const results: Record<string, any> = {};
+  const allDocs: any[] = [];
   
   console.log(`Getting existing consensus for ${tickers.length} tickers...`);
   
@@ -93,6 +99,7 @@ async function batchGetConsensus(tickers: string[]) {
         let consensusData: any = null;
         if (!consensusQuery.empty) {
           const doc = consensusQuery.docs[0];
+          allDocs.push(doc); // Collect for cache metadata
           consensusData = {
             ...doc.data(),
             id: doc.id
@@ -103,6 +110,56 @@ async function batchGetConsensus(tickers: string[]) {
           consensusData.guidance = getSampleGuidance(ticker);
           consensusData.analyst_reaction = getSampleAnalystReaction(ticker);
           consensusData.sentiment_analysis = "No sentiment analysis available";
+          
+          // Search for real analyst insights using Serper
+          try {
+            const analystSearchService = createAnalystSearchService();
+            
+            // Try to get cached insights first
+            let analystWebData = await analystSearchService.getCachedAnalystInsights(ticker, 120); // 2 hour cache
+            
+            // If no cached data or cache is old, fetch new data
+            if (!analystWebData) {
+              console.log(`Fetching fresh analyst insights for ${ticker}...`);
+              analystWebData = await analystSearchService.searchAnalystInsights(ticker);
+              
+              // Save to cache
+              await analystSearchService.saveAnalystInsights(ticker, analystWebData);
+            } else {
+              console.log(`Using cached analyst insights for ${ticker}`);
+            }
+            
+            // Add web-sourced analyst data to consensus
+            if (analystWebData && analystWebData.analystInsights.length > 0) {
+              consensusData.web_analyst_insights = {
+                individual_analysts: analystWebData.analystInsights,
+                firm_insights: analystWebData.firmInsights,
+                last_updated: analystWebData.lastUpdated,
+                total_analysts_found: analystWebData.analystInsights.length,
+                total_firms_found: analystWebData.firmInsights.length
+              };
+              
+              // Extract ratings and price targets for summary
+              const ratings = analystWebData.analystInsights
+                .filter(a => a.rating)
+                .map(a => ({ analyst: a.analyst, firm: a.firm, rating: a.rating }));
+              
+              const priceTargets = analystWebData.analystInsights
+                .filter(a => a.priceTarget)
+                .map(a => ({ analyst: a.analyst, firm: a.firm, priceTarget: a.priceTarget }));
+              
+              if (ratings.length > 0) {
+                consensusData.web_ratings_summary = ratings;
+              }
+              
+              if (priceTargets.length > 0) {
+                consensusData.web_price_targets = priceTargets;
+              }
+            }
+          } catch (analystSearchError) {
+            console.error(`Error fetching analyst insights for ${ticker}:`, analystSearchError);
+            // Don't fail the entire request, just log the error
+          }
           
           // Calculate credibility-weighted consensus using enhanced system
           try {
@@ -161,7 +218,10 @@ async function batchGetConsensus(tickers: string[]) {
     });
   }
   
-  return results;
+  // Extract cache metadata from all documents
+  const cacheMetadata = extractFirestoreCacheMetadata(allDocs);
+  
+  return { results, cacheMetadata };
 }
 
 /**
